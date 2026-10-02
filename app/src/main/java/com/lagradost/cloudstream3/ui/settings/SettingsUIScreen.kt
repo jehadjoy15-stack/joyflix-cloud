@@ -100,11 +100,11 @@ object SettingsUIScreen : SearchableSettings {
                             RoundColor(color.color)
                         },
                         onValueChanged = { newValue ->
-                            settings.ui.primaryColor.set(newValue) // We need to set before we recreate
+                            settings.ui.primaryColor.set(newValue)
                             safe {
                                 activity?.recreate()
                             }
-                            return@ListPreference false
+                            true
                         }),
                     Preference.PreferenceItem.ListPreference(
                         preference = settings.ui.theme,
@@ -125,11 +125,11 @@ object SettingsUIScreen : SearchableSettings {
                             RoundColor(theme.background)
                         },
                         onValueChanged = { newValue ->
-                            settings.ui.theme.set(newValue) // We need to set before we recreate
+                            settings.ui.theme.set(newValue)
                             safe {
                                 activity?.recreate()
                             }
-                            return@ListPreference false
+                            true
                         }),
                     Preference.PreferenceItem.ListPreference(
                         preference = settings.ui.layout,
@@ -139,12 +139,12 @@ object SettingsUIScreen : SearchableSettings {
                             stringArrayResource(R.array.app_layout)
                         ).toMap().toPersistentMap(),
                         onValueChanged = { newValue ->
-                            settings.ui.layout.set(newValue) // We need to set before we recreate
+                            settings.ui.layout.set(newValue)
                             safe {
                                 activity?.updateTv()
                                 activity?.recreate()
                             }
-                            return@ListPreference false
+                            true
                         }),
                 )
             ),

@@ -73,30 +73,33 @@ fun modeToTheme(mode : CloudStreamThemeMode, primaryColor: CloudStreamPrimaryCol
     return color
 }
 
-private fun CloudStreamColorScheme.toMaterial3ColorScheme() = if (isLight) {
-    lightColorScheme(
-        primary = primary,
-        background = background,
-        surface = surface,
-        surfaceVariant = surfaceVariant,
-        surfaceContainer = surfaceContainer,
-        onBackground = onBackground,
-        onSurface = onBackground,
-        onSurfaceVariant = onSurfaceVariant,
-        onPrimary = Color.White,
-    )
-} else {
-    darkColorScheme(
-        primary = primary,
-        background = background,
-        surface = surface,
-        surfaceVariant = surfaceVariant,
-        surfaceContainer = surfaceContainer,
-        onBackground = onBackground,
-        onSurface = onBackground,
-        onSurfaceVariant = onSurfaceVariant,
-        onPrimary = Color.White,
-    )
+private fun CloudStreamColorScheme.toMaterial3ColorScheme(): androidx.compose.material3.ColorScheme {
+    val onPrimaryColor = if (0.299f * primary.red + 0.587f * primary.green + 0.114f * primary.blue > 0.5f) Color.Black else Color.White
+    return if (isLight) {
+        lightColorScheme(
+            primary = primary,
+            background = background,
+            surface = surface,
+            surfaceVariant = surfaceVariant,
+            surfaceContainer = surfaceContainer,
+            onBackground = onBackground,
+            onSurface = onBackground,
+            onSurfaceVariant = onSurfaceVariant,
+            onPrimary = onPrimaryColor,
+        )
+    } else {
+        darkColorScheme(
+            primary = primary,
+            background = background,
+            surface = surface,
+            surfaceVariant = surfaceVariant,
+            surfaceContainer = surfaceContainer,
+            onBackground = onBackground,
+            onSurface = onBackground,
+            onSurfaceVariant = onSurfaceVariant,
+            onPrimary = onPrimaryColor,
+        )
+    }
 }
 
 internal val LocalSharedInfiniteTransition = staticCompositionLocalOf<InfiniteTransition> { throw NotImplementedError() }

@@ -368,6 +368,7 @@ object CommonActivity {
                 "NavyBlue" -> R.style.OverlayPrimaryColorNavyBlue
                 "Grey" -> R.style.OverlayPrimaryColorGrey
                 "White" -> R.style.OverlayPrimaryColorWhite
+                "Blue" -> R.style.OverlayPrimaryColorBlue
                 "CoolBlue" -> R.style.OverlayPrimaryColorCoolBlue
                 "Brown" -> R.style.OverlayPrimaryColorBrown
                 "Purple" -> R.style.OverlayPrimaryColorPurple
