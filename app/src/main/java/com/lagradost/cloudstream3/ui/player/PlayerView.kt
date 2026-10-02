@@ -112,6 +112,7 @@ class PlayerView @JvmOverloads constructor(
 
     /** Host-fragment-level callbacks invoked by [mainCallback]. */
     interface Callbacks {
+        fun playerEvent(event: PlayerEvent) {}
         fun nextEpisode() {}
         fun prevEpisode() {}
         fun playerPositionChanged(position: Long, duration: Long) {}
@@ -739,6 +740,7 @@ class PlayerView @JvmOverloads constructor(
     fun mainCallback(event: PlayerEvent) {
         // We don't want to spam DownloadEvent.
         if (event !is DownloadEvent) Log.i(TAG, "Handle event: $event")
+        callbacks?.playerEvent(event)
         when (event) {
             is DownloadEvent -> callbacks?.onDownload(event)
             is ResizedEvent -> {

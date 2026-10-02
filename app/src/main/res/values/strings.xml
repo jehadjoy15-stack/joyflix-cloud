@@ -795,4 +795,22 @@
         <item quantity="other">%d downloads queued</item>
     </plurals>
     <string name="player_is_live">Live</string>
+
+    <!-- Watch Together -->
+    <string name="watch_together">Watch Together</string>
+    <string name="watch_together_desc">Watch in sync with your friends</string>
+    <string name="create_room">Create Room</string>
+    <string name="join_room">Join Room</string>
+    <string name="leave_room">Leave Room</string>
+    <string name="enter_room_code">Enter 4-digit code (e.g. 8924)</string>
+    <string name="room_code">Room Code</string>
+    <string name="room_code_copied">Room code copied</string>
+    <string name="room_created_success">Room created! Share code with friends</string>
+    <string name="room_joined_success">Joined room successfully! Playback synced</string>
+    <string name="room_not_found">Room not found. Check the code and try again.</string>
+    <string name="room_connected">CONNECTED</string>
+    <string name="host">Host</string>
+    <string name="member">Member</string>
+    <string name="watch_party_info">Play, pause, and seek actions are synced automatically in real-time.</string>
+    <string name="copy_code">Copy Code</string>
 </resources>

@@ -41,10 +41,16 @@ import com.google.android.material.button.MaterialButton
 import com.lagradost.cloudstream3.CommonActivity.keyEventListener
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.R
+import com.lagradost.cloudstream3.databinding.DialogWatchTogetherBinding
 import com.lagradost.cloudstream3.databinding.FragmentPlayerBinding
 import com.lagradost.cloudstream3.databinding.PlayerCustomLayoutBinding
 import com.lagradost.cloudstream3.databinding.SpeedDialogBinding
 import com.lagradost.cloudstream3.databinding.SubtitleOffsetBinding
+import com.lagradost.cloudstream3.CommonActivity.showToast
+import com.lagradost.cloudstream3.utils.Coroutines.ioSafe
+import com.lagradost.cloudstream3.utils.UIHelper.clipboardHelper
+import com.lagradost.cloudstream3.utils.WatchTogetherManager
+import kotlin.math.abs
 import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.ui.player.GeneratorPlayer.Companion.subsProvidersIsActive
 import com.lagradost.cloudstream3.ui.player.source_priority.QualityDataHelper
@@ -157,6 +163,14 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 autoHide()
             }
         }
+    protected var selectWatchTogetherDialog: Dialog? = null
+        set(value) {
+            val prevField = field
+            field = value
+            if (value == null && prevField != null) {
+                autoHide()
+            }
+        }
 
     /** Checks if any top level dialog is open and showing */
     fun isDialogOpen() =
@@ -164,6 +178,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 || selectTrackDialog?.isShowing == true
                 || selectSpeedDialog?.isShowing == true
                 || selectSubtitlesDialog?.isShowing == true
+                || selectWatchTogetherDialog?.isShowing == true
                 || isShowingEpisodeOverlay
 
     private fun scheduleMetadataVisibility() {
@@ -221,6 +236,11 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
     }
 
     override fun onDestroyView() {
+        WatchTogetherManager.setOnRemoteSyncListener(null)
+        WatchTogetherManager.setOnRoomClosedListener(null)
+        WatchTogetherManager.leaveRoom()
+        selectWatchTogetherDialog?.dismissSafe(activity)
+        selectWatchTogetherDialog = null
         playerHostView?.releaseOverlayLayoutListener()
         playerBinding = null
         super.onDestroyView()
@@ -697,6 +717,165 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         //}
     }
 
+    private fun setupWatchTogetherSync() {
+        WatchTogetherManager.setOnRemoteSyncListener { state ->
+            activity?.runOnUiThread {
+                if (!isAdded || isDetached) return@runOnUiThread
+                val p = player
+                WatchTogetherManager.isApplyingRemoteSync = true
+                try {
+                    if (state.isPlaying != p.getIsPlaying()) {
+                        val cmd = if (state.isPlaying) CSPlayerEvent.Play else CSPlayerEvent.Pause
+                        p.handleEvent(cmd, PlayerEventSource.Sync)
+                    }
+
+                    val now = System.currentTimeMillis()
+                    val elapsed = if (state.updatedAt > 0) (now - state.updatedAt).coerceAtLeast(0L) else 0L
+                    val targetPos = if (state.isPlaying) state.position + elapsed else state.position
+                    val currentPos = p.getPosition() ?: 0L
+                    if (abs(currentPos - targetPos) > 2500L) {
+                        p.seekTo(targetPos, PlayerEventSource.Sync)
+                    }
+                } finally {
+                    playerHostView?.postDelayed({
+                        WatchTogetherManager.isApplyingRemoteSync = false
+                    }, 600L)
+                }
+            }
+        }
+
+        WatchTogetherManager.setOnRoomClosedListener {
+            activity?.runOnUiThread {
+                if (!isAdded || isDetached) return@runOnUiThread
+                showToast(R.string.leave_room)
+            }
+        }
+    }
+
+    private fun showWatchTogetherDialog() {
+        val act = activity ?: return
+        val binding: DialogWatchTogetherBinding = DialogWatchTogetherBinding.inflate(
+            LayoutInflater.from(act)
+        )
+
+        fun updateUI() {
+            if (WatchTogetherManager.isInRoom) {
+                binding.layoutNotInRoom.isVisible = false
+                binding.layoutInRoom.isVisible = true
+                val role = if (WatchTogetherManager.isHost) getString(R.string.host) else getString(R.string.member)
+                binding.tvRoomStatus.text = "● ${getString(R.string.room_connected)} • $role"
+                binding.tvCurrentRoomCode.text = WatchTogetherManager.currentRoomId ?: ""
+            } else {
+                binding.layoutNotInRoom.isVisible = true
+                binding.layoutInRoom.isVisible = false
+            }
+            binding.watchTogetherLoading.isVisible = false
+            binding.tvWatchTogetherError.isVisible = false
+        }
+
+        updateUI()
+
+        binding.btnDialogClose.setOnClickListener {
+            selectWatchTogetherDialog?.dismissSafe(act)
+        }
+
+        binding.btnCreateRoom.setOnClickListener {
+            binding.watchTogetherLoading.isVisible = true
+            binding.tvWatchTogetherError.isVisible = false
+            ioSafe {
+                val title = playerBinding?.playerVideoTitle?.text?.toString()
+                val currentPos = player.getPosition() ?: 0L
+                val isPlaying = player.getIsPlaying()
+                val result = WatchTogetherManager.createRoom(
+                    title = title,
+                    streamUrl = null,
+                    currentPos = currentPos,
+                    isPlaying = isPlaying
+                )
+                act.runOnUiThread {
+                    binding.watchTogetherLoading.isVisible = false
+                    result.onSuccess {
+                        showToast(R.string.room_created_success)
+                        updateUI()
+                    }.onFailure { err ->
+                        binding.tvWatchTogetherError.text = err.message ?: getString(R.string.room_not_found)
+                        binding.tvWatchTogetherError.isVisible = true
+                    }
+                }
+            }
+        }
+
+        binding.btnJoinRoom.setOnClickListener {
+            val code = binding.etRoomCode.text?.toString()?.trim()
+            if (code.isNullOrBlank()) {
+                binding.tvWatchTogetherError.text = getString(R.string.enter_room_code)
+                binding.tvWatchTogetherError.isVisible = true
+                return@setOnClickListener
+            }
+
+            binding.watchTogetherLoading.isVisible = true
+            binding.tvWatchTogetherError.isVisible = false
+            ioSafe {
+                WatchTogetherManager.joinRoom(
+                    inputCode = code,
+                    onRoomLoaded = { room ->
+                        act.runOnUiThread {
+                            binding.watchTogetherLoading.isVisible = false
+                            showToast(R.string.room_joined_success)
+                            updateUI()
+                            // Immediately sync playback with room state
+                            WatchTogetherManager.isApplyingRemoteSync = true
+                            try {
+                                val state = room.playback
+                                val elapsed = if (state.updatedAt > 0) (System.currentTimeMillis() - state.updatedAt).coerceAtLeast(0L) else 0L
+                                val targetPos = if (state.isPlaying) state.position + elapsed else state.position
+                                player.seekTo(targetPos, PlayerEventSource.Sync)
+                                if (state.isPlaying != player.getIsPlaying()) {
+                                    val cmd = if (state.isPlaying) CSPlayerEvent.Play else CSPlayerEvent.Pause
+                                    player.handleEvent(cmd, PlayerEventSource.Sync)
+                                }
+                            } finally {
+                                playerHostView?.postDelayed({
+                                    WatchTogetherManager.isApplyingRemoteSync = false
+                                }, 600L)
+                            }
+                        }
+                    },
+                    onError = { err ->
+                        act.runOnUiThread {
+                            binding.watchTogetherLoading.isVisible = false
+                            binding.tvWatchTogetherError.text = err
+                            binding.tvWatchTogetherError.isVisible = true
+                        }
+                    }
+                )
+            }
+        }
+
+        binding.btnCopyRoomCode.setOnClickListener {
+            val code = WatchTogetherManager.currentRoomId ?: return@setOnClickListener
+            clipboardHelper(txt(R.string.room_code), code)
+            showToast(R.string.room_code_copied)
+        }
+
+        binding.btnLeaveRoom.setOnClickListener {
+            WatchTogetherManager.leaveRoom()
+            showToast(R.string.leave_room)
+            updateUI()
+        }
+
+        val dismiss = DialogInterface.OnDismissListener {
+            act.hideSystemUI()
+            selectWatchTogetherDialog = null
+        }
+
+        val builder = AlertDialog.Builder(act, R.style.AlertDialogCustom).setView(binding.root)
+        builder.setOnDismissListener(dismiss)
+        val dialog = builder.create()
+        selectWatchTogetherDialog = dialog
+        dialog.show()
+    }
+
     private fun onClickChange() {
         isShowing = !isShowing
         if (isShowing) autoHide()
@@ -780,6 +959,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             playerLock.isGone = !isShowing
             playerGoBackHolder.isGone = isGone
             playerSourcesBtt.isGone = isGone
+            playerWatchTogetherBtt.isGone = isGone
             shadowOverlay.isGone = isGone
             playerSkipEpisode.isClickable = !isGone
         }
@@ -851,6 +1031,36 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
     override fun playerStatusChanged() {
         super.playerStatusChanged()
         scheduleMetadataVisibility()
+    }
+
+    override fun playerEvent(event: PlayerEvent) {
+        super.playerEvent(event)
+        if (event.source == PlayerEventSource.Sync) return
+        if (!WatchTogetherManager.isInRoom) return
+
+        when (event) {
+            is PlayEvent -> {
+                WatchTogetherManager.broadcastPlayback(
+                    isPlaying = true,
+                    position = player.getPosition() ?: 0L
+                )
+            }
+            is PauseEvent -> {
+                WatchTogetherManager.broadcastPlayback(
+                    isPlaying = false,
+                    position = player.getPosition() ?: 0L
+                )
+            }
+            is PositionEvent -> {
+                if (event.source == PlayerEventSource.UI) {
+                    WatchTogetherManager.broadcastPlayback(
+                        isPlaying = player.getIsPlaying(),
+                        position = event.toMs
+                    )
+                }
+            }
+            else -> Unit
+        }
     }
 
     // When the hold-speedup gesture fires, hide controls so the video is unobstructed.
@@ -1267,6 +1477,10 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 showTracksDialogue()
             }
 
+            playerWatchTogetherBtt.setOnClickListener {
+                showWatchTogetherDialog()
+            }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 playerControlsScroll.setOnScrollChangeListener { _, _, _, _, _ ->
                     autoHide()
@@ -1297,6 +1511,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         // init UI
         try {
             uiReset()
+            setupWatchTogetherSync()
         } catch (e: Exception) {
             logError(e)
         }

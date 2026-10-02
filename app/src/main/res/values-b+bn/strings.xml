@@ -422,4 +422,22 @@
     <string name="subtitle_offset_hint">১০০০ মিলিসেকেন্ড</string>
     <string name="subtitle_offset_title">সাবটাইটেল বিলম্ব</string>
     <string name="subtitle_offset_extra_hint_later_format">সাবটাইটেল যদি %d মিলিসেকেন্ড আগে দেখায় তবে এটি ব্যবহার করুন</string>
+
+    <!-- Watch Together -->
+    <string name="watch_together">একসাথে দেখুন</string>
+    <string name="watch_together_desc">বন্ধুদের সাথে একসাথে সিঙ্ক করে দেখুন</string>
+    <string name="create_room">রুম তৈরি করুন</string>
+    <string name="join_room">রুমে যুক্ত হোন</string>
+    <string name="leave_room">রুম থেকে বের হোন</string>
+    <string name="enter_room_code">৪ সংখ্যার কোড লিখুন (যেমন: 8924)</string>
+    <string name="room_code">রুম কোড</string>
+    <string name="room_code_copied">রুম কোড কপি করা হয়েছে</string>
+    <string name="room_created_success">রুম তৈরি হয়েছে! বন্ধুদের সাথে কোড শেয়ার করুন</string>
+    <string name="room_joined_success">রুমে যুক্ত হয়েছেন! প্লেব্যাক সিঙ্ক হচ্ছে</string>
+    <string name="room_not_found">রুম পাওয়া যায়নি। কোড চেক করে আবার চেষ্টা করুন।</string>
+    <string name="room_connected">কানেক্টেড</string>
+    <string name="host">হোস্ট</string>
+    <string name="member">মেম্বার</string>
+    <string name="watch_party_info">প্লে, পজ এবং সিক স্বয়ংক্রিয়ভাবে সিঙ্ক হবে।</string>
+    <string name="copy_code">কোড কপি করুন</string>
 </resources>
