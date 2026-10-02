@@ -83,7 +83,7 @@ object DeadLinkManager {
         ioSafe {
             try {
                 val listToSave = if (deadLinks.size > MAX_DEAD_LINKS) {
-                    deadLinks.takeLast(MAX_DEAD_LINKS).toTypedArray()
+                    deadLinks.toList().takeLast(MAX_DEAD_LINKS).toTypedArray()
                 } else {
                     deadLinks.toTypedArray()
                 }

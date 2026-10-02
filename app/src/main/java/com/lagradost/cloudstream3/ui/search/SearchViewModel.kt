@@ -284,7 +284,7 @@ class SearchViewModel : ViewModel() {
                 else -> {
                     val queryWords = cleanQuery.split(" ").filter { it.isNotBlank() }
                     if (queryWords.size > 1 && queryWords.all { cleanTitle.contains(it) }) {
-                        350.0 - (title.length - q.length).coerceAtLeast(0).coerceAtMost(150.0)
+                        350.0 - ((title.length - q.length).coerceAtLeast(0).coerceAtMost(150)).toDouble()
                     } else if (queryWords.isNotEmpty()) {
                         val matched = queryWords.count { cleanTitle.contains(it) }
                         if (matched > 0) {

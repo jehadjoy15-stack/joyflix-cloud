@@ -99,6 +99,7 @@
     <!--Other Colors -->
     <color name="colorPrimaryBlue">#5664B7</color>
     <color name="colorPrimaryRed">#D50000</color>
+    <color name="colorAccentRed">#D50000</color>
     <color name="colorPrimaryPurple">#6200EA</color> <!-- Burple-->
     <color name="colorPrimaryGreen">#00BFA5</color>
     <color name="colorPrimaryGreenApple">#48E484</color>
