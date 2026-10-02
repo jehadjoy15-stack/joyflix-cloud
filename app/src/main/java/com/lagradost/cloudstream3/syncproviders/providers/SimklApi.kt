@@ -57,7 +57,7 @@ class SimklApi : SyncAPI() {
 
     override val redirectUrlIdentifier = "simkl"
     override fun isValidRedirectUrl(url: String): Boolean =
-        url.contains("joyflix.fun") || super.isValidRedirectUrl(url)
+        (url.contains("joyflix.fun") && (url.contains("code=") || url.contains("state="))) || super.isValidRedirectUrl(url)
     override val hasOAuth2 = true
     override val hasPin = true
     override var requireLibraryRefresh = true
@@ -180,6 +180,7 @@ class SimklApi : SyncAPI() {
     companion object {
         private val CLIENT_ID: String = BuildConfig.SIMKL_CLIENT_ID.ifEmpty { "0cc0fcbc85c403aa174aa4aa1838e17d9d8e6b78ec9afea87450b96be0ba25fd" }
         private const val CLIENT_SECRET: String = BuildConfig.SIMKL_CLIENT_SECRET
+        const val SIMKL_REDIRECT_URI: String = "https://joyflix.fun/"
         const val SIMKL_CACHED_LIST: String = "simkl_cached_list"
         const val SIMKL_CACHED_LIST_TIME: String = "simkl_cached_time"
 
@@ -253,7 +254,7 @@ class SimklApi : SyncAPI() {
             @JsonProperty("code") @SerialName("code") val code: String,
             @JsonProperty("client_id") @SerialName("client_id") val clientId: String = CLIENT_ID,
             @JsonProperty("client_secret") @SerialName("client_secret") val clientSecret: String = CLIENT_SECRET,
-            @JsonProperty("redirect_uri") @SerialName("redirect_uri") val redirectUri: String = "$APP_STRING://simkl",
+            @JsonProperty("redirect_uri") @SerialName("redirect_uri") val redirectUri: String = SIMKL_REDIRECT_URI,
             @JsonProperty("grant_type") @SerialName("grant_type") val grantType: String = "authorization_code",
         ) {
             object Serializer : NonEmptySerializer<TokenRequest>(TokenRequest.generatedSerializer())
@@ -1018,7 +1019,7 @@ class SimklApi : SyncAPI() {
         val lastLoginState = BigInteger(130, SecureRandom()).toString(32)
         val codeVerifier = generateCodeVerifier()
         val codeChallenge = generateCodeChallenge(codeVerifier)
-        val url = "https://simkl.com/oauth2/authorize?response_type=code&client_id=$CLIENT_ID&redirect_uri=$APP_STRING://$redirectUrlIdentifier&state=$lastLoginState&code_challenge=$codeChallenge&code_challenge_method=S256"
+        val url = "https://simkl.com/oauth2/authorize?response_type=code&client_id=$CLIENT_ID&redirect_uri=$SIMKL_REDIRECT_URI&scope=media:read%20media:write&state=$lastLoginState&code_challenge=$codeChallenge&code_challenge_method=S256"
         return AuthLoginPage(
             url = url,
             payload = "$lastLoginState::$codeVerifier",
@@ -1132,7 +1133,7 @@ class SimklApi : SyncAPI() {
             )
         ).parsedSafe<PinAuthResponse>() ?: run {
             app.get(
-                "$mainUrl/oauth/pin?client_id=$CLIENT_ID&redirect_uri=$APP_STRING://$redirectUrlIdentifier"
+                "$mainUrl/oauth/pin?client_id=$CLIENT_ID&redirect_uri=$SIMKL_REDIRECT_URI"
             ).parsedSafe<PinAuthResponse>()
         } ?: return null
 
@@ -1176,11 +1177,12 @@ class SimklApi : SyncAPI() {
         if (state.isNullOrEmpty() || (expectedState != null && state != expectedState)) return null
 
         val code = uri.getQueryParameter("code") ?: return null
+        val usedRedirectUri = if (redirectUrl.startsWith("http")) SIMKL_REDIRECT_URI else "$APP_STRING://$redirectUrlIdentifier"
         val params = mutableMapOf(
             "grant_type" to "authorization_code",
             "client_id" to CLIENT_ID,
             "code" to code,
-            "redirect_uri" to "$APP_STRING://$redirectUrlIdentifier",
+            "redirect_uri" to usedRedirectUri,
         )
         if (!codeVerifier.isNullOrEmpty() && codeVerifier != payload) {
             params["code_verifier"] = codeVerifier
@@ -1193,7 +1195,7 @@ class SimklApi : SyncAPI() {
             "$mainUrl/oauth2/token", data = params
         ).parsedSafe<TokenResponse>() ?: run {
             app.post(
-                "$mainUrl/oauth2/token", json = TokenRequest(code)
+                "$mainUrl/oauth2/token", json = TokenRequest(code, redirectUri = usedRedirectUri)
             ).parsedSafe<TokenResponse>()
         } ?: return null
 

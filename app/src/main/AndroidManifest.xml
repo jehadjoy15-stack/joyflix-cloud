@@ -212,6 +212,17 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="joyflixcontinuewatching" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="joyflix.fun"
+                    android:scheme="https" />
+                <data
+                    android:host="joyflix.fun"
+                    android:scheme="http" />
+            </intent-filter>
 
             <!-- legacy compatibility schemes -->
             <intent-filter>
