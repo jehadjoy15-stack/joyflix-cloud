@@ -58,6 +58,7 @@ import com.lagradost.cloudstream3.ui.settings.Globals.TV
 import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
 import com.lagradost.cloudstream3.ui.subtitles.SaveCaptionStyle
 import com.lagradost.cloudstream3.ui.subtitles.SubtitlesFragment
+import com.lagradost.cloudstream3.utils.WatchTogetherManager
 import com.lagradost.cloudstream3.utils.AppContextUtils
 import com.lagradost.cloudstream3.utils.AppContextUtils.requestLocalAudioFocus
 import com.lagradost.cloudstream3.utils.DataStoreHelper
@@ -298,6 +299,10 @@ class PlayerView @JvmOverloads constructor(
                 var resume = false
                 progressBar.addOnScrubListener(object : PreviewBar.OnScrubListener {
                     override fun onScrubStart(previewBar: PreviewBar?) {
+                        if (WatchTogetherManager.isInRoom && !WatchTogetherManager.isHost) {
+                            showToast(R.string.watch_together_guest_seek_blocked)
+                            return
+                        }
                         val cs3 = player as? CS3IPlayer ?: return
                         val hasPreview = cs3.hasPreview()
                         progressBar.isPreviewEnabled = hasPreview
@@ -343,10 +348,18 @@ class PlayerView @JvmOverloads constructor(
              */
             exoPlayerView?.findViewById<DefaultTimeBar>(R.id.exo_progress)
                 ?.addListener(object : TimeBar.OnScrubListener {
-                    override fun onScrubStart(timeBar: TimeBar, position: Long) = Unit
+                    override fun onScrubStart(timeBar: TimeBar, position: Long) {
+                        if (WatchTogetherManager.isInRoom && !WatchTogetherManager.isHost) {
+                            showToast(R.string.watch_together_guest_seek_blocked)
+                        }
+                    }
                     override fun onScrubMove(timeBar: TimeBar, position: Long) = Unit
                     override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
                         if (canceled) return
+                        if (WatchTogetherManager.isInRoom && !WatchTogetherManager.isHost) {
+                            showToast(R.string.watch_together_guest_seek_blocked)
+                            return
+                        }
                         val playerDuration = player.getDuration() ?: return
                         val playerPosition = player.getPosition() ?: return
                         mainCallback(
@@ -384,10 +397,18 @@ class PlayerView @JvmOverloads constructor(
                 }
             }
             playerRew?.setOnClickListener  {
+                if (WatchTogetherManager.isInRoom && !WatchTogetherManager.isHost) {
+                    showToast(R.string.watch_together_guest_seek_blocked)
+                    return@setOnClickListener
+                }
                 scheduleAutoHide()
                 gestureHelper.rewind()
             }
             playerFfwd?.setOnClickListener {
+                if (WatchTogetherManager.isInRoom && !WatchTogetherManager.isHost) {
+                    showToast(R.string.watch_together_guest_seek_blocked)
+                    return@setOnClickListener
+                }
                 scheduleAutoHide()
                 gestureHelper.fastForward()
             }

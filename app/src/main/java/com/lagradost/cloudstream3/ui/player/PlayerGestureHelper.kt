@@ -43,6 +43,7 @@ import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
 import com.lagradost.cloudstream3.utils.DataStoreHelper
 import com.lagradost.cloudstream3.utils.UIHelper.getStatusBarHeight
 import com.lagradost.cloudstream3.utils.Vector2
+import com.lagradost.cloudstream3.utils.WatchTogetherManager
 import kotlin.math.abs
 import kotlin.math.absoluteValue
 import kotlin.math.ceil
@@ -880,6 +881,10 @@ class PlayerGestureHelper(private val playerView: PlayerView) {
 
     /** Plays the rewind animation and seeks back by [fastForwardTime]. */
     fun rewind() {
+        if (WatchTogetherManager.isInRoom && !WatchTogetherManager.isHost) {
+            showToast(R.string.watch_together_guest_seek_blocked)
+            return
+        }
         try {
             val rewHolder = playerView.playerRewHolder ?: return
             val rew = playerView.playerRew
@@ -921,6 +926,10 @@ class PlayerGestureHelper(private val playerView: PlayerView) {
 
     /** Plays the fast-forward animation and seeks forward by [fastForwardTime]. */
     fun fastForward() {
+        if (WatchTogetherManager.isInRoom && !WatchTogetherManager.isHost) {
+            showToast(R.string.watch_together_guest_seek_blocked)
+            return
+        }
         try {
             val ffwdHolder = playerView.playerFfwdHolder ?: return
             val ffwd = playerView.playerFfwd
@@ -1125,8 +1134,12 @@ class PlayerGestureHelper(private val playerView: PlayerView) {
                     }
                     if (swipeHorizontalEnabled && !isLocked) {
                         if (abs(diffFromStart.x * 100 / screenHeightWithOrientation) > MINIMUM_HORIZONTAL_SWIPE) {
-                            holdHandler.removeCallbacks(holdRunnable)
-                            currentTouchAction = TouchAction.Time
+                            if (WatchTogetherManager.isInRoom && !WatchTogetherManager.isHost) {
+                                showToast(R.string.watch_together_guest_seek_blocked)
+                            } else {
+                                holdHandler.removeCallbacks(holdRunnable)
+                                currentTouchAction = TouchAction.Time
+                            }
                         }
                     }
                 }
@@ -1175,11 +1188,16 @@ class PlayerGestureHelper(private val playerView: PlayerView) {
                 if (isCurrentTouchValid) {
                     // Horizontal seek on release
                     if (swipeHorizontalEnabled && currentTouchAction == TouchAction.Time && !isLocked) {
-                        val startTime = currentTouchStartPlayerTime
-                        if (startTime != null) {
-                            calculateNewTime(startTime, startTouch, currentTouch)?.let { seekTo ->
-                                if (abs(seekTo - startTime) > MINIMUM_SEEK_TIME) {
-                                    playerView.player.seekTo(seekTo, PlayerEventSource.UI)
+                        if (WatchTogetherManager.isInRoom && !WatchTogetherManager.isHost) {
+                            showToast(R.string.watch_together_guest_seek_blocked)
+                            playerView.callbacks?.onSeekPreviewText(null)
+                        } else {
+                            val startTime = currentTouchStartPlayerTime
+                            if (startTime != null) {
+                                calculateNewTime(startTime, startTouch, currentTouch)?.let { seekTo ->
+                                    if (abs(seekTo - startTime) > MINIMUM_SEEK_TIME) {
+                                        playerView.player.seekTo(seekTo, PlayerEventSource.UI)
+                                    }
                                 }
                             }
                         }

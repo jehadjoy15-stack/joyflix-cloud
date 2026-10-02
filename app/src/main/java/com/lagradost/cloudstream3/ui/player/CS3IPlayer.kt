@@ -77,12 +77,14 @@ import com.lagradost.cloudstream3.AudioFile
 import com.lagradost.cloudstream3.CloudStreamApp.Companion.getKey
 import com.lagradost.cloudstream3.CloudStreamApp.Companion.setKey
 import com.lagradost.cloudstream3.CommonActivity.activity
+import com.lagradost.cloudstream3.CommonActivity.showToast
 import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.MainActivity.Companion.deleteFileOnExit
 import com.lagradost.cloudstream3.R
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.USER_AGENT
 import com.lagradost.cloudstream3.app
+import com.lagradost.cloudstream3.utils.WatchTogetherManager
 import com.lagradost.cloudstream3.mvvm.debugAssert
 import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.mvvm.safe
@@ -918,10 +920,18 @@ class CS3IPlayer : IPlayer {
     }
 
     override fun seekTime(time: Long, source: PlayerEventSource) {
+        if (source != PlayerEventSource.Sync && WatchTogetherManager.isInRoom && !WatchTogetherManager.isHost) {
+            showToast(R.string.watch_together_guest_seek_blocked)
+            return
+        }
         exoPlayer?.seekTime(time, source)
     }
 
     override fun seekTo(time: Long, source: PlayerEventSource) {
+        if (source != PlayerEventSource.Sync && WatchTogetherManager.isInRoom && !WatchTogetherManager.isHost) {
+            showToast(R.string.watch_together_guest_seek_blocked)
+            return
+        }
         if (isMediaSeekable) {
             updatedTime(time, source)
             exoPlayer?.seekTo(time)

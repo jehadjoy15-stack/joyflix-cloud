@@ -813,4 +813,5 @@
     <string name="member">Member</string>
     <string name="watch_party_info">Play, pause, and seek actions are synced automatically in real-time.</string>
     <string name="copy_code">Copy Code</string>
+    <string name="watch_together_guest_seek_blocked">Only the host can seek the video</string>
 </resources>

@@ -440,4 +440,5 @@
     <string name="member">মেম্বার</string>
     <string name="watch_party_info">প্লে, পজ এবং সিক স্বয়ংক্রিয়ভাবে সিঙ্ক হবে।</string>
     <string name="copy_code">কোড কপি করুন</string>
+    <string name="watch_together_guest_seek_blocked">শুধুমাত্র হোস্ট ভিডিও আগে-পিছে করতে পারবে</string>
 </resources>
