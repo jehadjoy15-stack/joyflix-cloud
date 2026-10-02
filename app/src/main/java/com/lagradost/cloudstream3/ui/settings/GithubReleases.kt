@@ -91,25 +91,35 @@ object GithubReleases {
             "https://api.github.com/repos/$userName/$repository/releases/latest"
         }
 
-        val latestRelease = app.get(
-            url = latestReleaseUrl,
-            headers = defaultHeaders
-        ).parsed<GithubRelease>()
-
-        // Find the first correct asset, given that we might have other binaries we release in the same version
-        val foundAsset = latestRelease.assets.firstOrNull { asset ->
-            asset.contentType == contentType
-        }
-
-        if (foundAsset == null) {
+        val response = try {
+            app.get(
+                url = latestReleaseUrl,
+                headers = defaultHeaders
+            )
+        } catch (_: Exception) {
             return null
         }
+
+        if (!response.isSuccessful) {
+            return null
+        }
+
+        val latestRelease = try {
+            response.parsed<GithubRelease>()
+        } catch (_: Exception) {
+            return null
+        }
+
+        // Find the first correct APK asset, whether uploaded via web or GitHub action
+        val foundAsset = latestRelease.assets.firstOrNull { asset ->
+            asset.name.endsWith(".apk", ignoreCase = true) || asset.contentType == contentType
+        } ?: return null
 
         return GithubFile(
             digest = foundAsset.digest,
             downloadUrl = foundAsset.browserDownloadUrl,
             displayName = foundAsset.name.substringBeforeLast("."),
-            changeLog = latestRelease.body,
+            changeLog = latestRelease.body ?: "",
             tagName = latestRelease.tagName,
             nodeId = latestRelease.nodeId
         )

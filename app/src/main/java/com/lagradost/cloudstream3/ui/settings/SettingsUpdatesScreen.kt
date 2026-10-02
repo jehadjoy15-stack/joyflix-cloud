@@ -103,14 +103,6 @@ object SettingsUpdatesScreen : SearchableSettings {
                             }*/
                         }
                     ),
-                    Preference.PreferenceItem.TextPreference(
-                        title = stringResource(R.string.install_prerelease),
-                        icon = painterResource(R.drawable.mobile_code_24px),
-                        enabled = BuildConfig.FLAVOR == "stable",
-                        onClick = {
-                            activity?.installPreReleaseIfNeeded()
-                        }
-                    ),
 
                     Preference.PreferenceItem.ListPreference(
                         title = stringResource(R.string.apk_installer_settings),

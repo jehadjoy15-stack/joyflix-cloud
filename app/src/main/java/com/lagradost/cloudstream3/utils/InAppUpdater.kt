@@ -85,12 +85,7 @@ object InAppUpdater {
 
     private suspend fun Activity.getAppUpdate(installPrerelease: Boolean): Update {
         return try {
-            when {
-                // No updates on debug version
-                BuildConfig.DEBUG -> Update(false, null, null, null, null)
-                BuildConfig.FLAVOR == "prerelease" || installPrerelease -> getPreReleaseUpdate()
-                else -> getReleaseUpdate()
-            }
+            if (installPrerelease) getPreReleaseUpdate() else getReleaseUpdate()
         } catch (e: Exception) {
             Log.e(LOG_TAG, Log.getStackTraceString(e))
             Update(false, null, null, null, null)
@@ -100,51 +95,61 @@ object InAppUpdater {
     private suspend fun Activity.getReleaseUpdate(): Update {
         val url = "https://api.github.com/repos/$GITHUB_USER_NAME/$GITHUB_REPO/releases"
         val headers = mapOf("Accept" to "application/vnd.github.v3+json")
-        val response = parseJson<Array<GithubRelease>>(
+        val responseText = try {
             app.get(url, headers = headers).text
-        ).toList()
-
-        val versionRegex = Regex("""(.*?((\d+)\.(\d+)\.(\d+))\.apk)""")
-        val versionRegexLocal = Regex("""(.*?((\d+)\.(\d+)\.(\d+)).*)""")
-        val foundList = response.filter { rel ->
-            !rel.prerelease
-        }.sortedWith(compareBy { release ->
-            release.assets.firstOrNull { it.contentType == "application/vnd.android.package-archive" }?.name?.let { it1 ->
-                versionRegex.find(it1)?.groupValues?.let {
-                    it[3].toInt() * 100_000_000 + it[4].toInt() * 10_000 + it[5].toInt()
-                }
-            }
-        }).toList()
-
-        val found = foundList.lastOrNull()
-        val foundAsset = found?.assets?.getOrNull(0)
-        val foundVersion = foundAsset?.name?.let { versionRegex.find(it) }
-
-        if (foundVersion == null) {
+        } catch (_: Exception) {
+            return Update(false, null, null, null, null)
+        }
+        val response = try {
+            parseJson<Array<GithubRelease>>(responseText).toList()
+        } catch (_: Exception) {
             return Update(false, null, null, null, null)
         }
 
-        val currentVersion = packageName?.let {
-            packageManager.getPackageInfo(it, 0)
+        fun parseVersion(versionStr: String?): Long {
+            if (versionStr.isNullOrBlank()) return 0L
+            val clean = versionStr.trim().removePrefix("v").removePrefix("V")
+            val match = Regex("""(\d+)(?:\.(\d+))?(?:\.(\d+))?""").find(clean) ?: return 0L
+            val major = match.groupValues.getOrNull(1)?.toLongOrNull() ?: 0L
+            val minor = match.groupValues.getOrNull(2)?.takeIf { it.isNotEmpty() }?.toLongOrNull() ?: 0L
+            val patch = match.groupValues.getOrNull(3)?.takeIf { it.isNotEmpty() }?.toLongOrNull() ?: 0L
+            return major * 100_000_000L + minor * 10_000L + patch
         }
 
-        val shouldUpdate = if (foundAsset.browserDownloadUrl.isBlank()) {
-            false
+        val foundList = response.filter { rel ->
+            !rel.prerelease
+        }.sortedWith(compareBy { release ->
+            val apk = release.assets.firstOrNull {
+                it.name.endsWith(".apk", ignoreCase = true) || it.contentType == "application/vnd.android.package-archive"
+            }
+            maxOf(parseVersion(release.tagName), parseVersion(apk?.name))
+        })
+
+        val found = foundList.lastOrNull() ?: return Update(false, null, null, null, null)
+        val foundAsset = found.assets.firstOrNull {
+            it.name.endsWith(".apk", ignoreCase = true) || it.contentType == "application/vnd.android.package-archive"
+        } ?: return Update(false, null, null, null, null)
+
+        val currentVersionName = packageName?.let {
+            try { packageManager.getPackageInfo(it, 0)?.versionName } catch (_: Exception) { null }
+        } ?: BuildConfig.VERSION_NAME
+
+        val remoteVersionNum = maxOf(parseVersion(found.tagName), parseVersion(foundAsset.name))
+        val currentVersionNum = parseVersion(currentVersionName)
+
+        val isNewer = if (remoteVersionNum > 0 && currentVersionNum > 0) {
+            remoteVersionNum > currentVersionNum
         } else {
-            currentVersion?.versionName?.let { versionName ->
-                versionRegexLocal.find(versionName)?.groupValues?.let {
-                    it[3].toInt() * 100_000_000 + it[4].toInt() * 10_000 + it[5].toInt()
-                }
-            }?.compareTo(
-                foundVersion.groupValues.let {
-                    it[3].toInt() * 100_000_000 + it[4].toInt() * 10_000 + it[5].toInt()
-                })!! < 0
+            !found.tagName.trim('v', 'V').equals(currentVersionName.trim('v', 'V'), ignoreCase = true)
         }
+
+        val shouldUpdate = isNewer && foundAsset.browserDownloadUrl.isNotBlank()
+        val displayVersion = found.tagName.ifBlank { foundAsset.name }
 
         return Update(
             shouldUpdate,
             foundAsset.browserDownloadUrl,
-            foundVersion.groupValues[2],
+            displayVersion,
             found.body,
             found.nodeId
         )
@@ -189,7 +194,7 @@ object InAppUpdater {
     private suspend fun Activity.downloadUpdate(url: String): Boolean {
         try {
             Log.d(LOG_TAG, "Downloading update: $url")
-            val appUpdateName = "CloudStream"
+            val appUpdateName = "JoyFlix"
             val appUpdateSuffix = "apk"
 
             // Delete all old updates

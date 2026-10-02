@@ -249,13 +249,37 @@ class GithubViewModel(
         }
 
         val release = getRelease(prerelease)
-
-        // If on stable, only check that the display name matches
-        if (!prerelease && release.displayName == versionName) {
+        if (release == null) {
             updateState {
                 copy(dialog = baseDialog.copy(state = GithubUpdateDialogState.NoUpdateFound))
             }
             return@dispatchUpdate
+        }
+
+        // If on stable, check semantic versioning
+        if (!prerelease) {
+            fun parseVersion(versionStr: String?): Long {
+                if (versionStr.isNullOrBlank()) return 0L
+                val clean = versionStr.trim().removePrefix("v").removePrefix("V")
+                val match = Regex("""(\d+)(?:\.(\d+))?(?:\.(\d+))?""").find(clean) ?: return 0L
+                val major = match.groupValues.getOrNull(1)?.toLongOrNull() ?: 0L
+                val minor = match.groupValues.getOrNull(2)?.takeIf { it.isNotEmpty() }?.toLongOrNull() ?: 0L
+                val patch = match.groupValues.getOrNull(3)?.takeIf { it.isNotEmpty() }?.toLongOrNull() ?: 0L
+                return major * 100_000_000L + minor * 10_000L + patch
+            }
+
+            val remoteVersionNum = maxOf(parseVersion(release.tagName), parseVersion(release.displayName))
+            val currentVersionNum = parseVersion(versionName)
+
+            val isSameVersion = release.tagName.trim('v', 'V').equals(versionName.trim('v', 'V'), ignoreCase = true) ||
+                    release.displayName.equals(versionName, ignoreCase = true)
+
+            if (isSameVersion || (remoteVersionNum > 0 && currentVersionNum > 0 && remoteVersionNum <= currentVersionNum)) {
+                updateState {
+                    copy(dialog = baseDialog.copy(state = GithubUpdateDialogState.NoUpdateFound))
+                }
+                return@dispatchUpdate
+            }
         }
 
         // If this was automated, and we have pressed "skip this update" then check the node-id
@@ -279,7 +303,6 @@ class GithubViewModel(
         }
     }
 
-    @Throws
     private suspend fun getRelease(prerelease: Boolean) =
         GithubReleases.getLatestReleaseFile(
             prerelease = prerelease,
@@ -287,7 +310,7 @@ class GithubViewModel(
             repository = remoteRepository,
             prereleaseTag = remotePrereleaseTag,
             contentType = remoteContentType
-        ) ?: throw FileNotFoundException()
+        )
 
     @Throws
     private suspend fun getSha(tag: String) =
