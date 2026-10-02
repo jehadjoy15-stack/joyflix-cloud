@@ -1193,7 +1193,7 @@ class SimklApi : SyncAPI() {
             "$mainUrl/oauth2/token", data = params
         ).parsedSafe<TokenResponse>() ?: run {
             app.post(
-                "$mainUrl/oauth/token", json = TokenRequest(code)
+                "$mainUrl/oauth2/token", json = TokenRequest(code)
             ).parsedSafe<TokenResponse>()
         } ?: return null
 
