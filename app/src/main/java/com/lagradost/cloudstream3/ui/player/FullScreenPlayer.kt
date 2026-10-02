@@ -893,6 +893,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             if (nick.isNullOrBlank()) {
                 binding.tvWatchTogetherError.text = getString(R.string.enter_nickname)
                 binding.tvWatchTogetherError.isVisible = true
+                binding.etNickname.requestFocus()
                 return@setOnClickListener
             }
             WatchTogetherManager.saveNickname(act, nick)
@@ -952,6 +953,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             if (nick.isNullOrBlank()) {
                 binding.tvWatchTogetherError.text = getString(R.string.enter_nickname)
                 binding.tvWatchTogetherError.isVisible = true
+                binding.etNickname.requestFocus()
                 return@setOnClickListener
             }
             WatchTogetherManager.saveNickname(act, nick)

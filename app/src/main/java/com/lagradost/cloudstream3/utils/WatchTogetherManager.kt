@@ -467,6 +467,7 @@ object WatchTogetherManager {
             if (nick.isNullOrBlank()) {
                 binding.tvWatchTogetherError.text = activity.getString(R.string.enter_nickname)
                 binding.tvWatchTogetherError.isVisible = true
+                binding.etNickname.requestFocus()
                 return@setOnClickListener
             }
             saveNickname(activity, nick)
@@ -485,6 +486,7 @@ object WatchTogetherManager {
             if (nick.isNullOrBlank()) {
                 binding.tvWatchTogetherError.text = activity.getString(R.string.enter_nickname)
                 binding.tvWatchTogetherError.isVisible = true
+                binding.etNickname.requestFocus()
                 return@setOnClickListener
             }
             saveNickname(activity, nick)
