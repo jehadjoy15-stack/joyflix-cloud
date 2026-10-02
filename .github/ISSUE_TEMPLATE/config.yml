@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Request a new provider or report bug with an existing provider
+    url: https://github.com/jehadjoy15-stack/joyflix-cloud
+    about: EXTREMELY IMPORTANT - Please do not report any provider bugs here or request new providers. This repository does not contain any providers.
+  - name: Discord
+    url: https://discord.gg/uJFdAsznFh
+    about: Join our discord for support and discussions.
