@@ -11,11 +11,6 @@
         android:key="@string/legal_notice_key"
         android:title="@string/legal_notice" />
 
-    <Preference
-        android:icon="@drawable/benene"
-        android:key="@string/benene_count"
-        android:title="@string/benene"
-        app:summary="@string/benene_des" />
 
     <PreferenceCategory android:title="@string/title_downloads">
 
