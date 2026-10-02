@@ -41,7 +41,7 @@ class AniListApi : SyncAPI() {
     private val key = BuildConfig.ANILIST_KEY.ifEmpty { "52491" }
     override val redirectUrlIdentifier = "anilistlogin"
     override fun isValidRedirectUrl(url: String): Boolean =
-        url.contains("joyflix.fun") || super.isValidRedirectUrl(url)
+        url.contains("/anilistlogin") || url.contains("/anilist") || (url.contains("joyflix.fun") && url.contains("access_token"))
     override var requireLibraryRefresh = true
     override val hasOAuth2 = true
     override var mainUrl = "https://anilist.co"

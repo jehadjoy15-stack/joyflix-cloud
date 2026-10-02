@@ -38,11 +38,12 @@ class MALApi : SyncAPI() {
     override val idPrefix = "mal"
 
     private val key = BuildConfig.MAL_KEY.ifEmpty { "871cc44df0ba5d0a7a32c6c2a41d8b92" }
+    private val secret = BuildConfig.MAL_SECRET
     private val apiUrl = "https://api.myanimelist.net"
     override val hasOAuth2 = true
     override val redirectUrlIdentifier: String? = "mallogin"
     override fun isValidRedirectUrl(url: String): Boolean =
-        url.contains("joyflix.fun") || super.isValidRedirectUrl(url)
+        url.contains("/mallogin") || (url.contains("joyflix.fun") && url.contains("RequestID")) || (url.contains("RequestID") && !url.contains("/simkl") && !url.contains("/anilist"))
     override val mainUrl = "https://myanimelist.net"
     override val icon = R.drawable.mal_logo
     override val syncIdName = SyncIdName.MyAnimeList
@@ -64,24 +65,30 @@ class MALApi : SyncAPI() {
     )
 
     override suspend fun login(redirectUrl: String, payload: String?): AuthToken? {
-        val payloadData = parseJson<Payload>(payload!!)
+        if (payload == null) return null
+        val payloadData = parseJson<Payload>(payload)
         val sanitizer = splitRedirectUrl(redirectUrl)
-        val state = sanitizer["state"]!!
+        val state = sanitizer["state"] ?: return null
 
-        if (state != "RequestID${payloadData.requestId}") {
+        if (!state.startsWith("RequestID")) {
             return null
         }
 
-        val currentCode = sanitizer["code"]!!
+        val currentCode = sanitizer["code"] ?: return null
+
+        val params = mutableMapOf(
+            "client_id" to key,
+            "code" to currentCode,
+            "code_verifier" to payloadData.codeVerifier,
+            "grant_type" to "authorization_code",
+        )
+        if (secret.isNotBlank()) {
+            params["client_secret"] = secret
+        }
 
         val token = app.post(
             "$mainUrl/v1/oauth2/token",
-            data = mapOf(
-                "client_id" to key,
-                "code" to currentCode,
-                "code_verifier" to payloadData.codeVerifier,
-                "grant_type" to "authorization_code",
-            )
+            data = params
         ).parsed<ResponseToken>()
         return AuthToken(
             accessTokenLifetime = APIHolder.unixTime + token.expiresIn.toLong(),

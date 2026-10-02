@@ -172,7 +172,7 @@ abstract class AuthAPI {
 
         fun splitRedirectUrl(redirectUrl: String): Map<String, String> {
             return splitUrlParameters(
-                redirectUrl.replace(APP_STRING, "https").replace("/#", "?")
+                redirectUrl.replace(APP_STRING, "https").replace("/#", "?").replace("#", "?")
             )
         }
 

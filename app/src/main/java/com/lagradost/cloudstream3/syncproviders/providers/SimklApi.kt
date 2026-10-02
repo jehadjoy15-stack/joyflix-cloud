@@ -57,7 +57,7 @@ class SimklApi : SyncAPI() {
 
     override val redirectUrlIdentifier = "simkl"
     override fun isValidRedirectUrl(url: String): Boolean =
-        (url.contains("joyflix.fun") && (url.contains("code=") || url.contains("state="))) || super.isValidRedirectUrl(url)
+        url.contains("/simkl") || url.contains("/simkllogin") || (url.contains("joyflix.fun") && (url.contains("code=") || url.contains("state=")) && !url.contains("RequestID") && !url.contains("access_token"))
     override val hasOAuth2 = true
     override val hasPin = true
     override var requireLibraryRefresh = true
@@ -1177,7 +1177,7 @@ class SimklApi : SyncAPI() {
         if (state.isNullOrEmpty() || (expectedState != null && state != expectedState)) return null
 
         val code = uri.getQueryParameter("code") ?: return null
-        val usedRedirectUri = if (redirectUrl.startsWith("http")) SIMKL_REDIRECT_URI else "$APP_STRING://$redirectUrlIdentifier"
+        val usedRedirectUri = SIMKL_REDIRECT_URI
         val params = mutableMapOf(
             "grant_type" to "authorization_code",
             "client_id" to CLIENT_ID,

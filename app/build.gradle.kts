@@ -142,6 +142,11 @@ android {
         )
         buildConfigField(
             "String",
+            "MAL_SECRET",
+            "\"" + (System.getenv("MAL_SECRET") ?: localProperties["mal.secret"] ?: "") + "\""
+        )
+        buildConfigField(
+            "String",
             "ANILIST_KEY",
             "\"" + (System.getenv("ANILIST_KEY") ?: localProperties["anilist.key"]) + "\""
         )
