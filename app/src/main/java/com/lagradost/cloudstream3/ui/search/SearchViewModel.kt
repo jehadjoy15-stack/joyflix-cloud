@@ -147,7 +147,7 @@ class SearchViewModel : ViewModel() {
 
                     // just to be sure we are not adding the same shit for some reason
                     // Avoids weird behavior in the recyclerview by recreating the list
-                    this.list = (this.list + nextValue.items).distinctBy { it.url }
+                    this.list = rankSearchResults((this.list + nextValue.items).distinctBy { it.url }, query)
                 } ?: debugWarning {
                     "Expanded an item not in search load named $name, current list is ${expandableSearches.keys}"
                 }
@@ -155,7 +155,7 @@ class SearchViewModel : ViewModel() {
                 current.hasNext = false
             }
 
-            _searchResponse.postValue(Resource.Success(bundleSearch(expandableSearches)))
+            _searchResponse.postValue(Resource.Success(bundleSearch(expandableSearches, query)))
             _currentSearch.postValue(expandableSearches)
         }
 
@@ -169,30 +169,21 @@ class SearchViewModel : ViewModel() {
         )
     }
 
-    private fun bundleSearch(lists: MutableMap<String, ExpandableSearchList>): ExpandableSearchList {
-        if (lists.size == 1) {
-            return lists.values.first()
+    private fun bundleSearch(
+        lists: MutableMap<String, ExpandableSearchList>,
+        query: String? = lastQuery
+    ): ExpandableSearchList {
+        val allItems = ArrayList<SearchResponse>()
+        lists.values.forEach {
+            allItems.addAll(it.list)
         }
 
-        val list = ArrayList<SearchResponse>()
-        val nestedList =
-            lists.map { it.value.list }
-
-        // I do it this way to move the relevant search results to the top
-        var index = 0
-        while (true) {
-            var added = 0
-            for (sublist in nestedList) {
-                if (sublist.size > index) {
-                    list.add(sublist[index])
-                    added++
-                }
-            }
-            if (added == 0) break
-            index++
+        if (query.isNullOrBlank()) {
+            return ExpandableSearchList(allItems.distinctBy { it.url }, 1, false)
         }
 
-        return ExpandableSearchList(list, 1, false)
+        val rankedList = rankSearchResults(allItems, query)
+        return ExpandableSearchList(rankedList, 1, false)
     }
 
     private fun search(
@@ -236,8 +227,9 @@ class SearchViewModel : ViewModel() {
                     if (currentSearchIndex != currentIndex) return@amap
                     if (search is Resource.Success) {
                         val searchValue = search.value
+                        val sortedItems = rankSearchResults(searchValue.items, query)
                         expandableSearches[a.name] =
-                            ExpandableSearchList(searchValue.items, 1, searchValue.hasNext)
+                            ExpandableSearchList(sortedItems, 1, searchValue.hasNext)
                     }
 
                     _currentSearch.postValue(expandableSearches)
@@ -246,9 +238,99 @@ class SearchViewModel : ViewModel() {
                 if (currentSearchIndex != currentIndex) return@withContext // this should prevent rewrite of existing data bug
 
                 _currentSearch.postValue(expandableSearches)
-                val list = bundleSearch(expandableSearches)
+                val list = bundleSearch(expandableSearches, query)
 
                 _searchResponse.postValue(Resource.Success(list))
             }
         }
+
+    companion object {
+        /**
+         * Calculates a relevance score for a search result based on the search query.
+         * Exact matches and titles starting with the query receive the highest priority.
+         */
+        fun calculateRelevanceScore(name: String, query: String, hasPoster: Boolean = true): Double {
+            val q = query.trim().lowercase()
+            val title = name.trim().lowercase()
+            if (q.isEmpty() || title.isEmpty()) return 0.0
+
+            val cleanQuery = q.replace(Regex("[^a-z0-9\\s]"), " ").replace(Regex("\\s+"), " ").trim()
+            val cleanTitle = title.replace(Regex("[^a-z0-9\\s]"), " ").replace(Regex("\\s+"), " ").trim()
+            val titleWithoutYear = cleanTitle.replace(Regex("\\b(19|20)\\d{2}\\b"), "").replace(Regex("\\s+"), " ").trim()
+
+            var score = when {
+                // Exact match (highest priority, e.g. "Jawan" == "Jawan")
+                title == q || cleanTitle == cleanQuery -> 1000.0
+                titleWithoutYear == cleanQuery -> 920.0
+
+                // Starts with the query (e.g. "Avatar: The Way of Water" starts with "Avatar")
+                title.startsWith(q) || cleanTitle.startsWith(cleanQuery) -> {
+                    val lengthDiff = (title.length - q.length).coerceAtLeast(0)
+                    800.0 - (lengthDiff * 2.0).coerceAtMost(250.0)
+                }
+
+                // Query appears as an exact full word/phrase in title (e.g. "The Avatar")
+                Regex("\\b${Regex.escape(cleanQuery)}\\b").containsMatchIn(cleanTitle) -> {
+                    val lengthDiff = (title.length - q.length).coerceAtLeast(0)
+                    600.0 - (lengthDiff * 1.5).coerceAtMost(200.0)
+                }
+
+                // Substring match anywhere in title
+                title.contains(q) || cleanTitle.contains(cleanQuery) -> {
+                    val lengthDiff = (title.length - q.length).coerceAtLeast(0)
+                    450.0 - (lengthDiff * 1.5).coerceAtMost(200.0)
+                }
+
+                else -> {
+                    val queryWords = cleanQuery.split(" ").filter { it.isNotBlank() }
+                    if (queryWords.size > 1 && queryWords.all { cleanTitle.contains(it) }) {
+                        350.0 - (title.length - q.length).coerceAtLeast(0).coerceAtMost(150.0)
+                    } else if (queryWords.isNotEmpty()) {
+                        val matched = queryWords.count { cleanTitle.contains(it) }
+                        if (matched > 0) {
+                            (matched.toDouble() / queryWords.size) * 200.0
+                        } else {
+                            0.0
+                        }
+                    } else {
+                        0.0
+                    }
+                }
+            }
+
+            if (hasPoster) {
+                score += 15.0
+            }
+
+            return score
+        }
+
+        /**
+         * Ranks search results so that exact title matches (e.g. "Avatar", "Jawan")
+         * appear at the very top of the list.
+         */
+        fun rankSearchResults(
+            items: List<SearchResponse>,
+            query: String
+        ): List<SearchResponse> {
+            val q = query.trim().lowercase()
+            if (q.isEmpty()) return items.distinctBy { it.url }
+
+            return items
+                .distinctBy { it.url }
+                .mapIndexed { index, response ->
+                    val relevance = calculateRelevanceScore(
+                        name = response.name,
+                        query = q,
+                        hasPoster = !response.posterUrl.isNullOrBlank()
+                    )
+                    // Slight penalty for being further down in original provider list
+                    val positionPenalty = (index * 0.1).coerceAtMost(20.0)
+                    val finalScore = relevance - positionPenalty
+                    Pair(response, finalScore)
+                }
+                .sortedByDescending { it.second }
+                .map { it.first }
+        }
+    }
 }
