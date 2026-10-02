@@ -719,6 +719,14 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
     open fun getCurrentEpisodeIndex(): Int? = null
     open fun loadEpisodeByIndex(index: Int) {}
+    open fun getCurrentMediaUrl(): String? = null
+    open fun getCurrentApiName(): String? = null
+    open fun getCurrentEpisodeId(): Int? = null
+    open fun getCurrentEpisodeNum(): Int? = null
+    open fun getCurrentSeasonNum(): Int? = null
+    open fun getCurrentPoster(): String? = null
+    open fun getCurrentTvType(): String? = null
+    open fun getCurrentMediaTitle(): String? = null
 
     private fun setupWatchTogetherSync() {
         WatchTogetherManager.setOnRemoteSyncListener { state ->
@@ -763,6 +771,66 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 showToast(R.string.leave_room)
             }
         }
+
+        WatchTogetherManager.setOnMemberJoinedListener { member ->
+            activity?.runOnUiThread {
+                if (!isAdded || isDetached) return@runOnUiThread
+                showToast(getString(R.string.guest_joined_notify, member.name))
+            }
+        }
+    }
+
+    fun checkPendingWatchTogether() {
+        val act = activity ?: return
+        if (WatchTogetherManager.isCreatingWatchParty) {
+            val nick = WatchTogetherManager.pendingHostNickname ?: WatchTogetherManager.getSavedNickname(act).ifBlank { "Host" }
+            val title = getCurrentMediaTitle() ?: playerBinding?.playerVideoTitle?.text?.toString()
+            val currentPos = player.getPosition() ?: 0L
+            val isPlaying = player.getIsPlaying()
+            val epIndex = getCurrentEpisodeIndex()
+            val mediaUrl = getCurrentMediaUrl()
+            val apiName = getCurrentApiName()
+            val epId = getCurrentEpisodeId()
+            val epNum = getCurrentEpisodeNum()
+            val seasonNum = getCurrentSeasonNum()
+            val poster = getCurrentPoster()
+            val tvType = getCurrentTvType()
+
+            ioSafe {
+                val res = WatchTogetherManager.createRoom(
+                    nickname = nick,
+                    title = title,
+                    streamUrl = null,
+                    mediaUrl = mediaUrl,
+                    apiName = apiName,
+                    episodeId = epId,
+                    episode = epNum,
+                    season = seasonNum,
+                    poster = poster,
+                    tvType = tvType,
+                    currentPos = currentPos,
+                    isPlaying = isPlaying,
+                    episodeIndex = epIndex
+                )
+                act.runOnUiThread {
+                    res.onSuccess {
+                        showToast(R.string.room_created_success)
+                        showWatchTogetherDialog()
+                    }
+                }
+            }
+        } else if (WatchTogetherManager.pendingJoinRoomId != null) {
+            WatchTogetherManager.pendingJoinRoomId = null
+            WatchTogetherManager.currentRoom?.playback?.let { state ->
+                val elapsed = if (state.updatedAt > 0) (System.currentTimeMillis() - state.updatedAt).coerceAtLeast(0L) else 0L
+                val targetPos = if (state.isPlaying) state.position + elapsed else state.position
+                player.seekTo(targetPos, PlayerEventSource.Sync)
+                if (state.isPlaying != player.getIsPlaying()) {
+                    val cmd = if (state.isPlaying) CSPlayerEvent.Play else CSPlayerEvent.Pause
+                    player.handleEvent(cmd, PlayerEventSource.Sync)
+                }
+            }
+        }
     }
 
     private fun showWatchTogetherDialog() {
@@ -771,6 +839,11 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             LayoutInflater.from(act)
         )
 
+        val savedNick = WatchTogetherManager.getSavedNickname(act)
+        if (savedNick.isNotBlank()) {
+            binding.etNickname.setText(savedNick)
+        }
+
         fun updateUI() {
             if (WatchTogetherManager.isInRoom) {
                 binding.layoutNotInRoom.isVisible = false
@@ -778,6 +851,17 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 val role = if (WatchTogetherManager.isHost) getString(R.string.host) else getString(R.string.member)
                 binding.tvRoomStatus.text = "● ${getString(R.string.room_connected)} • $role"
                 binding.tvCurrentRoomCode.text = WatchTogetherManager.currentRoomId ?: ""
+
+                // Members List
+                val members = WatchTogetherManager.currentRoom?.members?.values?.toList() ?: emptyList()
+                binding.tvMembersCount.text = "${members.size} online"
+                val membersFormatted = members.joinToString(", ") { m ->
+                    if (m.isHost) "👑 ${m.name} (Host)" else m.name
+                }
+                binding.tvMembersList.text = if (membersFormatted.isNotBlank()) membersFormatted else "👑 Host"
+
+                // Host button
+                binding.btnHostStartPlay.isVisible = WatchTogetherManager.isHost
             } else {
                 binding.layoutNotInRoom.isVisible = true
                 binding.layoutInRoom.isVisible = false
@@ -788,38 +872,90 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
         updateUI()
 
+        WatchTogetherManager.setOnMembersUpdatedListener { members ->
+            act.runOnUiThread {
+                if (WatchTogetherManager.isInRoom) {
+                    binding.tvMembersCount.text = "${members.size} online"
+                    val membersFormatted = members.joinToString(", ") { m ->
+                        if (m.isHost) "👑 ${m.name} (Host)" else m.name
+                    }
+                    binding.tvMembersList.text = membersFormatted
+                }
+            }
+        }
+
         binding.btnDialogClose.setOnClickListener {
             selectWatchTogetherDialog?.dismissSafe(act)
         }
 
         binding.btnCreateRoom.setOnClickListener {
+            val nick = binding.etNickname.text?.toString()?.trim()
+            if (nick.isNullOrBlank()) {
+                binding.tvWatchTogetherError.text = getString(R.string.enter_nickname)
+                binding.tvWatchTogetherError.isVisible = true
+                return@setOnClickListener
+            }
+            WatchTogetherManager.saveNickname(act, nick)
+
             binding.watchTogetherLoading.isVisible = true
             binding.tvWatchTogetherError.isVisible = false
+
+            // Extract all UI views and Player state on Main Thread!
+            val title = getCurrentMediaTitle() ?: playerBinding?.playerVideoTitle?.text?.toString()
+            val currentPos = player.getPosition() ?: 0L
+            val isPlaying = player.getIsPlaying()
+            val epIndex = getCurrentEpisodeIndex()
+            val mediaUrl = getCurrentMediaUrl()
+            val apiName = getCurrentApiName()
+            val epId = getCurrentEpisodeId()
+            val epNum = getCurrentEpisodeNum()
+            val seasonNum = getCurrentSeasonNum()
+            val poster = getCurrentPoster()
+            val tvType = getCurrentTvType()
+
             ioSafe {
-                val title = playerBinding?.playerVideoTitle?.text?.toString()
-                val currentPos = player.getPosition() ?: 0L
-                val isPlaying = player.getIsPlaying()
-                val result = WatchTogetherManager.createRoom(
-                    title = title,
-                    streamUrl = null,
-                    currentPos = currentPos,
-                    isPlaying = isPlaying,
-                    episodeIndex = getCurrentEpisodeIndex()
-                )
-                act.runOnUiThread {
-                    binding.watchTogetherLoading.isVisible = false
-                    result.onSuccess {
-                        showToast(R.string.room_created_success)
-                        updateUI()
-                    }.onFailure { err ->
-                        binding.tvWatchTogetherError.text = err.message ?: getString(R.string.room_not_found)
-                        binding.tvWatchTogetherError.isVisible = true
+                try {
+                    val result = WatchTogetherManager.createRoom(
+                        nickname = nick,
+                        title = title,
+                        streamUrl = null,
+                        mediaUrl = mediaUrl,
+                        apiName = apiName,
+                        episodeId = epId,
+                        episode = epNum,
+                        season = seasonNum,
+                        poster = poster,
+                        tvType = tvType,
+                        currentPos = currentPos,
+                        isPlaying = isPlaying,
+                        episodeIndex = epIndex
+                    )
+                    act.runOnUiThread {
+                        result.onSuccess {
+                            showToast(R.string.room_created_success)
+                            updateUI()
+                        }.onFailure { err ->
+                            binding.tvWatchTogetherError.text = err.message ?: getString(R.string.room_not_found)
+                            binding.tvWatchTogetherError.isVisible = true
+                        }
+                    }
+                } finally {
+                    act.runOnUiThread {
+                        binding.watchTogetherLoading.isVisible = false
                     }
                 }
             }
         }
 
         binding.btnJoinRoom.setOnClickListener {
+            val nick = binding.etNickname.text?.toString()?.trim()
+            if (nick.isNullOrBlank()) {
+                binding.tvWatchTogetherError.text = getString(R.string.enter_nickname)
+                binding.tvWatchTogetherError.isVisible = true
+                return@setOnClickListener
+            }
+            WatchTogetherManager.saveNickname(act, nick)
+
             val code = binding.etRoomCode.text?.toString()?.trim()
             if (code.isNullOrBlank()) {
                 binding.tvWatchTogetherError.text = getString(R.string.enter_room_code)
@@ -830,46 +966,62 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             binding.watchTogetherLoading.isVisible = true
             binding.tvWatchTogetherError.isVisible = false
             ioSafe {
-                WatchTogetherManager.joinRoom(
-                    inputCode = code,
-                    onRoomLoaded = { room ->
-                        act.runOnUiThread {
-                            binding.watchTogetherLoading.isVisible = false
-                            showToast(R.string.room_joined_success)
-                            updateUI()
-                            // Immediately sync episode and playback with room state
-                            val state = room.playback
-                            val targetEpisode = state.episodeIndex ?: room.episodeIndex
-                            val currentEpisode = getCurrentEpisodeIndex()
-                            if (targetEpisode != null && currentEpisode != null && currentEpisode != targetEpisode) {
-                                loadEpisodeByIndex(targetEpisode)
-                            } else {
-                                WatchTogetherManager.isApplyingRemoteSync = true
-                                try {
-                                    val elapsed = if (state.updatedAt > 0) (System.currentTimeMillis() - state.updatedAt).coerceAtLeast(0L) else 0L
-                                    val targetPos = if (state.isPlaying) state.position + elapsed else state.position
-                                    player.seekTo(targetPos, PlayerEventSource.Sync)
-                                    if (state.isPlaying != player.getIsPlaying()) {
-                                        val cmd = if (state.isPlaying) CSPlayerEvent.Play else CSPlayerEvent.Pause
-                                        player.handleEvent(cmd, PlayerEventSource.Sync)
+                try {
+                    WatchTogetherManager.joinRoom(
+                        inputCode = code,
+                        nickname = nick,
+                        onRoomLoaded = { room ->
+                            act.runOnUiThread {
+                                showToast(R.string.room_joined_success)
+                                updateUI()
+                                val state = room.playback
+                                val targetEpisode = state.episodeIndex ?: room.episodeIndex
+                                val currentEpisode = getCurrentEpisodeIndex()
+                                if (targetEpisode != null && currentEpisode != null && currentEpisode != targetEpisode) {
+                                    loadEpisodeByIndex(targetEpisode)
+                                } else {
+                                    WatchTogetherManager.isApplyingRemoteSync = true
+                                    try {
+                                        val elapsed = if (state.updatedAt > 0) (System.currentTimeMillis() - state.updatedAt).coerceAtLeast(0L) else 0L
+                                        val targetPos = if (state.isPlaying) state.position + elapsed else state.position
+                                        player.seekTo(targetPos, PlayerEventSource.Sync)
+                                        if (state.isPlaying != player.getIsPlaying()) {
+                                            val cmd = if (state.isPlaying) CSPlayerEvent.Play else CSPlayerEvent.Pause
+                                            player.handleEvent(cmd, PlayerEventSource.Sync)
+                                        }
+                                    } finally {
+                                        playerHostView?.postDelayed({
+                                            WatchTogetherManager.isApplyingRemoteSync = false
+                                        }, 600L)
                                     }
-                                } finally {
-                                    playerHostView?.postDelayed({
-                                        WatchTogetherManager.isApplyingRemoteSync = false
-                                    }, 600L)
                                 }
                             }
+                        },
+                        onError = { err ->
+                            act.runOnUiThread {
+                                binding.tvWatchTogetherError.text = err
+                                binding.tvWatchTogetherError.isVisible = true
+                            }
                         }
-                    },
-                    onError = { err ->
-                        act.runOnUiThread {
-                            binding.watchTogetherLoading.isVisible = false
-                            binding.tvWatchTogetherError.text = err
-                            binding.tvWatchTogetherError.isVisible = true
-                        }
+                    )
+                } finally {
+                    act.runOnUiThread {
+                        binding.watchTogetherLoading.isVisible = false
                     }
-                )
+                }
             }
+        }
+
+        binding.btnHostStartPlay.setOnClickListener {
+            player.handleEvent(CSPlayerEvent.Play, PlayerEventSource.Player)
+            val currentPos = player.getPosition() ?: 0L
+            WatchTogetherManager.broadcastPlayback(
+                isPlaying = true,
+                position = currentPos,
+                episodeIndex = getCurrentEpisodeIndex()
+            )
+            selectWatchTogetherDialog?.dismissSafe(act)
+            showToast("Video started for everyone!")
         }
 
         binding.btnCopyRoomCode.setOnClickListener {
@@ -1565,6 +1717,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
     }
 
     override fun playerDimensionsLoaded(width: Int, height: Int) {
+        checkPendingWatchTogether()
         // PlayerView already set isVerticalOrientation; skip rotation on TV (pillarbox instead).
         if (isLayout(TV or EMULATOR)) return
         // Skip zero-size events emitted when the player transitions to STATE_IDLE,

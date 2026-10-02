@@ -814,4 +814,11 @@
     <string name="watch_party_info">Play, pause, and seek actions are synced automatically in real-time.</string>
     <string name="copy_code">Copy Code</string>
     <string name="watch_together_guest_seek_blocked">Only the host can seek the video</string>
+    <string name="enter_nickname">Enter your nickname</string>
+    <string name="your_nickname">Your Nickname</string>
+    <string name="nickname_hint">Nickname (e.g. Joy)</string>
+    <string name="connected_members">Connected Friends</string>
+    <string name="host_start_watching">Start Video For Everyone</string>
+    <string name="waiting_for_friends">Waiting for friends to join...</string>
+    <string name="guest_joined_notify">%s has joined the room!</string>
 </resources>

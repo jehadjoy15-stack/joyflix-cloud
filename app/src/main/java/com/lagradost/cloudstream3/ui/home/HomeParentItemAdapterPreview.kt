@@ -38,6 +38,7 @@ import com.lagradost.cloudstream3.ui.WatchType
 import com.lagradost.cloudstream3.ui.account.AccountHelper.showAccountEditDialog
 import com.lagradost.cloudstream3.ui.account.AccountHelper.showAccountSelectLinear
 import com.lagradost.cloudstream3.ui.account.AccountViewModel
+import com.lagradost.cloudstream3.utils.WatchTogetherManager
 import com.lagradost.cloudstream3.ui.result.FOCUS_SELF
 import com.lagradost.cloudstream3.ui.result.ResultFragment.bindLogo
 import com.lagradost.cloudstream3.ui.result.ResultViewModel2
@@ -323,11 +324,15 @@ class HomeParentItemAdapterPreview(
         private val headProfilePic: ImageView? = itemView.findViewById(R.id.home_head_profile_pic)
         private val headProfilePicCard: View? =
             itemView.findViewById(R.id.home_head_profile_padding)
+        private val headWatchTogether: View? =
+            itemView.findViewById(R.id.home_head_watch_together)
 
         private val alternateHeadProfilePic: ImageView? =
             itemView.findViewById(R.id.alternate_home_head_profile_pic)
         private val alternateHeadProfilePicCard: View? =
             itemView.findViewById(R.id.alternate_home_head_profile_padding)
+        private val alternateHeadWatchTogether: View? =
+            itemView.findViewById(R.id.alternate_home_head_watch_together)
 
         private val topPadding: View? = itemView.findViewById(R.id.home_padding)
 
@@ -578,6 +583,17 @@ class HomeParentItemAdapterPreview(
 
             alternateHeadProfilePicCard?.setOnClickListener {
                 activity?.showAccountSelectLinear()
+            }
+
+            headWatchTogether?.setOnClickListener {
+                activity?.let { act ->
+                    WatchTogetherManager.showWatchTogetherHomeDialog(act)
+                }
+            }
+            alternateHeadWatchTogether?.setOnClickListener {
+                activity?.let { act ->
+                    WatchTogetherManager.showWatchTogetherHomeDialog(act)
+                }
             }
 
             (binding as? FragmentHomeHeadTvBinding)?.apply {

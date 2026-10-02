@@ -56,6 +56,25 @@
                 tools:ignore="RtlSymmetry" />
 
             <LinearLayout
+                android:id="@+id/home_head_watch_together"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginEnd="4dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="@drawable/rounded_select_ripple"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:contentDescription="@string/watch_together"
+                    android:src="@drawable/ic_baseline_people_24"
+                    app:tint="@color/white" />
+            </LinearLayout>
+
+            <LinearLayout
                 android:id="@+id/home_head_profile_padding"
                 android:layout_width="50dp"
                 android:layout_height="50dp"
@@ -63,7 +82,7 @@
                 android:focusable="true"
                 android:foreground="@drawable/rounded_select_ripple"
                 android:gravity="center"
-                android:nextFocusLeft="@id/home_search"
+                android:nextFocusLeft="@id/home_head_watch_together"
                 android:orientation="horizontal">
 
                 <androidx.cardview.widget.CardView
@@ -164,6 +183,25 @@
         android:paddingHorizontal="0dp">
 
         <LinearLayout
+            android:id="@+id/alternate_home_head_watch_together"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginEnd="4dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="@drawable/rounded_select_ripple"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:contentDescription="@string/watch_together"
+                android:src="@drawable/ic_baseline_people_24"
+                app:tint="@color/white" />
+        </LinearLayout>
+
+        <LinearLayout
             android:id="@+id/alternate_home_head_profile_padding"
             android:layout_width="50dp"
             android:layout_height="50dp"
@@ -171,7 +209,7 @@
             android:focusable="true"
             android:foreground="@drawable/rounded_select_ripple"
             android:gravity="center"
-            android:nextFocusLeft="@id/home_search"
+            android:nextFocusLeft="@id/alternate_home_head_watch_together"
             android:orientation="horizontal">
 
             <androidx.cardview.widget.CardView

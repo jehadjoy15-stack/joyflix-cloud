@@ -130,6 +130,7 @@ import com.lagradost.cloudstream3.utils.setText
 import com.lagradost.cloudstream3.utils.txt
 import com.lagradost.cloudstream3.utils.videoskip.VideoSkipStamp
 import com.lagradost.cloudstream3.utils.WatchTogetherManager
+import com.lagradost.cloudstream3.ui.result.ResultEpisode
 import com.lagradost.safefile.SafeFile
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -1683,6 +1684,47 @@ class GeneratorPlayer : FullScreenPlayer() {
 
     override fun getCurrentEpisodeIndex(): Int? {
         return viewModel.episodeIndex
+    }
+
+    override fun getCurrentMediaUrl(): String? {
+        return (viewModel.generator as? RepoLinkGenerator)?.page?.url
+            ?: viewModel.state.generatorState?.response?.url
+    }
+
+    override fun getCurrentApiName(): String? {
+        val repGen = viewModel.generator as? RepoLinkGenerator
+        return repGen?.page?.apiName
+            ?: viewModel.state.generatorState?.response?.apiName
+            ?: (currentMeta as? ResultEpisode)?.apiName
+    }
+
+    override fun getCurrentEpisodeId(): Int? {
+        return (currentMeta as? ResultEpisode)?.id ?: viewModel.state.generatorState?.id
+    }
+
+    override fun getCurrentEpisodeNum(): Int? {
+        return (currentMeta as? ResultEpisode)?.episode
+    }
+
+    override fun getCurrentSeasonNum(): Int? {
+        return (currentMeta as? ResultEpisode)?.season
+    }
+
+    override fun getCurrentPoster(): String? {
+        return (currentMeta as? ResultEpisode)?.poster
+            ?: (viewModel.generator as? RepoLinkGenerator)?.page?.posterUrl
+            ?: viewModel.state.generatorState?.response?.posterUrl
+    }
+
+    override fun getCurrentTvType(): String? {
+        return (currentMeta as? ResultEpisode)?.tvType?.name
+            ?: (viewModel.generator as? RepoLinkGenerator)?.page?.type?.name
+    }
+
+    override fun getCurrentMediaTitle(): String? {
+        return (currentMeta as? ResultEpisode)?.headerName
+            ?: (viewModel.generator as? RepoLinkGenerator)?.page?.name
+            ?: viewModel.state.generatorState?.response?.name
     }
 
     override fun loadEpisodeByIndex(index: Int) {

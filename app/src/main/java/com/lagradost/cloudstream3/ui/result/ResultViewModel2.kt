@@ -2541,6 +2541,7 @@ class ResultViewModel2 : ViewModel() {
                                 currentEpisodes[currentIndex]?.firstOrNull { it.episode == ep && it.season == autostart.episode }
                                     ?: all.firstOrNull { it.episode == ep && it.season == autostart.episode }
                             }
+                            ?: all.firstOrNull()
                             ?: return@launchSafe
                     handleAction(
                         EpisodeClickEvent(
