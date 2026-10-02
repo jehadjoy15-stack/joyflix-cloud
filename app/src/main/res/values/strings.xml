@@ -821,4 +821,6 @@
     <string name="host_start_watching">Start Video For Everyone</string>
     <string name="waiting_for_friends">Waiting for friends to join...</string>
     <string name="guest_joined_notify">%s has joined the room!</string>
+    <string name="chat">Chat</string>
+    <string name="type_a_message">Type a message...</string>
 </resources>

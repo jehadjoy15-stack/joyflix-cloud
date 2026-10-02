@@ -20,6 +20,7 @@ import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.AlphaAnimation
 import android.view.animation.DecelerateInterpolator
@@ -778,6 +779,71 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 showToast(getString(R.string.guest_joined_notify, member.name))
             }
         }
+
+        WatchTogetherManager.setOnNewMessageListener { msg ->
+            showChatMessageToast(msg.senderName, msg.text)
+        }
+    }
+
+    private var hideChatToastRunnable: Runnable? = null
+
+    private fun showChatMessageToast(senderName: String, text: String) {
+        val b = playerBinding ?: return
+        activity?.runOnUiThread {
+            if (!isAdded || isDetached) return@runOnUiThread
+            hideChatToastRunnable?.let { b.playerChatToastContainer.removeCallbacks(it) }
+
+            b.playerChatSenderName.text = "$senderName: "
+            b.playerChatMessageText.text = text
+
+            b.playerChatToastContainer.alpha = 0f
+            b.playerChatToastContainer.isVisible = true
+            b.playerChatToastContainer.animate()
+                .alpha(1f)
+                .setDuration(200)
+                .start()
+
+            // Display for exactly 2 seconds as requested by user
+            val runnable = Runnable {
+                b.playerChatToastContainer.animate()
+                    .alpha(0f)
+                    .setDuration(300)
+                    .withEndAction {
+                        b.playerChatToastContainer.isVisible = false
+                    }
+                    .start()
+            }
+            hideChatToastRunnable = runnable
+            b.playerChatToastContainer.postDelayed(runnable, 2000L)
+        }
+    }
+
+    private fun toggleChatBar() {
+        val b = playerBinding ?: return
+        if (b.playerChatBarContainer.isVisible) {
+            b.playerChatBarContainer.animate().alpha(0f).setDuration(200).withEndAction {
+                b.playerChatBarContainer.isVisible = false
+            }.start()
+        } else {
+            b.playerChatBarContainer.alpha = 0f
+            b.playerChatBarContainer.isVisible = true
+            b.playerChatBarContainer.animate().alpha(1f).setDuration(200).start()
+            b.etPlayerChatInput.requestFocus()
+        }
+    }
+
+    private fun sendCurrentChatMessage(customText: String? = null) {
+        val b = playerBinding ?: return
+        val text = customText ?: b.etPlayerChatInput.text?.toString()?.trim() ?: ""
+        if (text.isBlank()) return
+        val act = activity ?: return
+        val senderNick = WatchTogetherManager.getSavedNickname(act).ifBlank {
+            WatchTogetherManager.currentRoom?.members?.get(WatchTogetherManager.myUserId)?.name
+                ?: WatchTogetherManager.pendingHostNickname
+                ?: "User"
+        }
+        b.etPlayerChatInput.setText("")
+        WatchTogetherManager.sendMessage(text, senderNick)
     }
 
     fun checkPendingWatchTogether() {
@@ -1134,6 +1200,10 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             playerGoBackHolder.isGone = isGone
             playerSourcesBtt.isGone = isGone
             playerWatchTogetherBtt.isGone = isGone
+            playerChatBtt.isGone = isGone || !WatchTogetherManager.isInRoom
+            if (isGone && playerChatBarContainer.isVisible) {
+                playerChatBarContainer.isVisible = false
+            }
             shadowOverlay.isGone = isGone
             playerSkipEpisode.isClickable = !isGone
         }
@@ -1659,6 +1729,29 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 showWatchTogetherDialog()
             }
 
+            playerChatBtt.setOnClickListener {
+                toggleChatBar()
+            }
+
+            btnPlayerChatSend.setOnClickListener {
+                sendCurrentChatMessage()
+            }
+
+            etPlayerChatInput.setOnEditorActionListener { _, actionId, _ ->
+                if (actionId == EditorInfo.IME_ACTION_SEND) {
+                    sendCurrentChatMessage()
+                    true
+                } else {
+                    false
+                }
+            }
+
+            btnQuickEmojiFire.setOnClickListener { sendCurrentChatMessage("🔥") }
+            btnQuickEmojiLaugh.setOnClickListener { sendCurrentChatMessage("😂") }
+            btnQuickEmojiHeart.setOnClickListener { sendCurrentChatMessage("❤️") }
+            btnQuickEmojiShock.setOnClickListener { sendCurrentChatMessage("😱") }
+            btnQuickEmojiClap.setOnClickListener { sendCurrentChatMessage("👏") }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 playerControlsScroll.setOnScrollChangeListener { _, _, _, _, _ ->
                     autoHide()
@@ -1763,5 +1856,12 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 }
                 .start()
         }
+    }
+
+    override fun onDestroyView() {
+        hideChatToastRunnable?.let { playerBinding?.playerChatToastContainer?.removeCallbacks(it) }
+        hideChatToastRunnable = null
+        WatchTogetherManager.setOnNewMessageListener(null)
+        super.onDestroyView()
     }
 }

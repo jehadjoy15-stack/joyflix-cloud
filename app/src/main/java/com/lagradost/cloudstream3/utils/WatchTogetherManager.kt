@@ -57,6 +57,15 @@ object WatchTogetherManager {
     )
 
     @Serializable
+    data class ChatMessage(
+        @JsonProperty("id") val id: String = "",
+        @JsonProperty("senderId") val senderId: String = "",
+        @JsonProperty("senderName") val senderName: String = "",
+        @JsonProperty("text") val text: String = "",
+        @JsonProperty("timestamp") val timestamp: Long = 0L
+    )
+
+    @Serializable
     data class RoomData(
         @JsonProperty("roomId") val roomId: String = "",
         @JsonProperty("title") val title: String? = null,
@@ -73,7 +82,8 @@ object WatchTogetherManager {
         @JsonProperty("createdAt") val createdAt: Long = 0L,
         @JsonProperty("playback") val playback: PlaybackState = PlaybackState(),
         @JsonProperty("episodeIndex") val episodeIndex: Int? = null,
-        @JsonProperty("members") val members: Map<String, MemberData> = emptyMap()
+        @JsonProperty("members") val members: Map<String, MemberData> = emptyMap(),
+        @JsonProperty("lastMessage") val lastMessage: ChatMessage? = null
     )
 
     var currentRoomId: String? = null
@@ -106,7 +116,41 @@ object WatchTogetherManager {
     private var onRoomClosedCallback: (() -> Unit)? = null
     private var onMemberJoinedCallback: ((MemberData) -> Unit)? = null
     private var onMembersUpdatedCallback: ((List<MemberData>) -> Unit)? = null
+    private var onNewMessageCallback: ((ChatMessage) -> Unit)? = null
+    private var lastSeenMessageId: String? = null
     private val knownMemberIds = mutableSetOf<String>()
+
+    fun setOnNewMessageListener(listener: ((ChatMessage) -> Unit)?) {
+        onNewMessageCallback = listener
+    }
+
+    fun sendMessage(text: String, senderNickname: String) {
+        val roomId = currentRoomId ?: return
+        val trimmed = text.trim()
+        if (trimmed.isBlank()) return
+
+        val msg = ChatMessage(
+            id = UUID.randomUUID().toString(),
+            senderId = myUserId,
+            senderName = senderNickname.ifBlank { "User" },
+            text = trimmed,
+            timestamp = System.currentTimeMillis()
+        )
+
+        lastSeenMessageId = msg.id
+        // Trigger immediately locally
+        onNewMessageCallback?.invoke(msg)
+
+        ioSafe {
+            try {
+                val url = "${getBaseUrl()}/rooms/$roomId/lastMessage.json"
+                val body = msg.toJson().toRequestBody(JSON_MEDIA_TYPE)
+                app.put(url, requestBody = body)
+            } catch (e: Throwable) {
+                logError(e)
+            }
+        }
+    }
 
     fun getSavedNickname(context: Context?): String {
         return try {
@@ -285,6 +329,7 @@ object WatchTogetherManager {
         pendingHostNickname = null
         stopListening()
         knownMemberIds.clear()
+        lastSeenMessageId = null
 
         if (roomToClean != null) {
             ioSafe {
@@ -381,6 +426,15 @@ object WatchTogetherManager {
                                 }
                             }
                             onMembersUpdatedCallback?.invoke(memberList)
+
+                            // 3. Check for new chat messages
+                            val msg = room.lastMessage
+                            if (msg != null && msg.id != lastSeenMessageId) {
+                                lastSeenMessageId = msg.id
+                                if (msg.senderId != myUserId) {
+                                    onNewMessageCallback?.invoke(msg)
+                                }
+                            }
                         }
                     } else if (text == "null" && !isHost) {
                         // Room was closed / deleted by host
