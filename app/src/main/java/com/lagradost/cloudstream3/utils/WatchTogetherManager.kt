@@ -29,7 +29,8 @@ object WatchTogetherManager {
         @JsonProperty("isPlaying") val isPlaying: Boolean = false,
         @JsonProperty("position") val position: Long = 0L,
         @JsonProperty("updatedAt") val updatedAt: Long = 0L,
-        @JsonProperty("updatedBy") val updatedBy: String = ""
+        @JsonProperty("updatedBy") val updatedBy: String = "",
+        @JsonProperty("episodeIndex") val episodeIndex: Int? = null
     )
 
     @Serializable
@@ -39,7 +40,8 @@ object WatchTogetherManager {
         @JsonProperty("streamUrl") val streamUrl: String? = null,
         @JsonProperty("hostId") val hostId: String = "",
         @JsonProperty("createdAt") val createdAt: Long = 0L,
-        @JsonProperty("playback") val playback: PlaybackState = PlaybackState()
+        @JsonProperty("playback") val playback: PlaybackState = PlaybackState(),
+        @JsonProperty("episodeIndex") val episodeIndex: Int? = null
     )
 
     var currentRoomId: String? = null
@@ -50,6 +52,8 @@ object WatchTogetherManager {
 
     var isHost: Boolean = false
         private set
+
+    var currentEpisodeIndex: Int? = null
 
     val isInRoom: Boolean get() = !currentRoomId.isNullOrBlank()
 
@@ -73,21 +77,25 @@ object WatchTogetherManager {
         title: String?,
         streamUrl: String?,
         currentPos: Long,
-        isPlaying: Boolean
+        isPlaying: Boolean,
+        episodeIndex: Int? = null
     ): Result<String> {
         return try {
             val roomId = generateRoomCode()
+            currentEpisodeIndex = episodeIndex
             val room = RoomData(
                 roomId = roomId,
                 title = title,
                 streamUrl = streamUrl,
                 hostId = myUserId,
                 createdAt = System.currentTimeMillis(),
+                episodeIndex = episodeIndex,
                 playback = PlaybackState(
                     isPlaying = isPlaying,
                     position = currentPos,
                     updatedAt = System.currentTimeMillis(),
-                    updatedBy = myUserId
+                    updatedBy = myUserId,
+                    episodeIndex = episodeIndex
                 )
             )
 
@@ -105,7 +113,7 @@ object WatchTogetherManager {
             isHost = true
             startListening()
 
-            Log.i(TAG, "Created room: $roomId")
+            Log.i(TAG, "Created room: $roomId with episodeIndex: $episodeIndex")
             Result.success(roomId)
         } catch (e: Throwable) {
             logError(e)
@@ -146,9 +154,10 @@ object WatchTogetherManager {
             currentRoomId = roomId
             currentRoom = room
             isHost = (room.hostId == myUserId)
+            currentEpisodeIndex = room.playback.episodeIndex ?: room.episodeIndex
             startListening()
 
-            Log.i(TAG, "Joined room: $roomId")
+            Log.i(TAG, "Joined room: $roomId with episodeIndex: $currentEpisodeIndex")
             onRoomLoaded(room)
         } catch (e: Throwable) {
             logError(e)
@@ -161,6 +170,7 @@ object WatchTogetherManager {
         val host = isHost
         currentRoomId = null
         currentRoom = null
+        currentEpisodeIndex = null
         isHost = false
         stopListening()
 
@@ -175,9 +185,13 @@ object WatchTogetherManager {
         }
     }
 
-    fun broadcastPlayback(isPlaying: Boolean, position: Long) {
+    fun broadcastPlayback(isPlaying: Boolean, position: Long, episodeIndex: Int? = null) {
         val roomId = currentRoomId ?: return
         if (isApplyingRemoteSync) return
+
+        if (episodeIndex != null) {
+            currentEpisodeIndex = episodeIndex
+        }
 
         ioSafe {
             try {
@@ -185,7 +199,8 @@ object WatchTogetherManager {
                     isPlaying = isPlaying,
                     position = position,
                     updatedAt = System.currentTimeMillis(),
-                    updatedBy = myUserId
+                    updatedBy = myUserId,
+                    episodeIndex = currentEpisodeIndex
                 )
                 val url = "${getBaseUrl()}/rooms/$roomId/playback.json"
                 val body = state.toJson().toRequestBody(JSON_MEDIA_TYPE)
@@ -221,6 +236,9 @@ object WatchTogetherManager {
                         if (!text.contains("Permission denied", ignoreCase = true)) {
                             val state = AppUtils.parseJson<PlaybackState>(text)
                             if (state.updatedBy != myUserId) {
+                                if (state.episodeIndex != null) {
+                                    currentEpisodeIndex = state.episodeIndex
+                                }
                                 onRemoteSyncCallback?.invoke(state)
                             }
                         }

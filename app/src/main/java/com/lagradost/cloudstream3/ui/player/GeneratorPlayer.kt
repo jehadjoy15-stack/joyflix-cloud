@@ -129,6 +129,7 @@ import com.lagradost.cloudstream3.utils.downloader.DownloadUtils.getImageBitmapF
 import com.lagradost.cloudstream3.utils.setText
 import com.lagradost.cloudstream3.utils.txt
 import com.lagradost.cloudstream3.utils.videoskip.VideoSkipStamp
+import com.lagradost.cloudstream3.utils.WatchTogetherManager
 import com.lagradost.safefile.SafeFile
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -1680,11 +1681,30 @@ class GeneratorPlayer : FullScreenPlayer() {
         }
     }
 
+    override fun getCurrentEpisodeIndex(): Int? {
+        return viewModel.episodeIndex
+    }
+
+    override fun loadEpisodeByIndex(index: Int) {
+        if (viewModel.episodeIndex != index) {
+            isNextEpisode = true
+            releasePlayer()
+            viewModel.loadThisEpisode(index)
+        }
+    }
+
     override fun nextEpisode() {
         if (viewModel.hasNextEpisode() == true) {
             isNextEpisode = true
             releasePlayer()
             viewModel.loadLinksNext()
+            if (WatchTogetherManager.isInRoom && WatchTogetherManager.isHost) {
+                WatchTogetherManager.broadcastPlayback(
+                    isPlaying = true,
+                    position = 0L,
+                    episodeIndex = viewModel.episodeIndex
+                )
+            }
         }
     }
 
@@ -1693,6 +1713,13 @@ class GeneratorPlayer : FullScreenPlayer() {
             isNextEpisode = true
             releasePlayer()
             viewModel.loadLinksPrev()
+            if (WatchTogetherManager.isInRoom && WatchTogetherManager.isHost) {
+                WatchTogetherManager.broadcastPlayback(
+                    isPlaying = true,
+                    position = 0L,
+                    episodeIndex = viewModel.episodeIndex
+                )
+            }
         }
     }
 
@@ -2153,7 +2180,16 @@ class GeneratorPlayer : FullScreenPlayer() {
                             isNextEpisode = false
                             releasePlayer()
                             playerEpisodeOverlay.isGone = true
-                            episodeClick.position?.let { viewModel.loadThisEpisode(it) }
+                            episodeClick.position?.let {
+                                viewModel.loadThisEpisode(it)
+                                if (WatchTogetherManager.isInRoom && WatchTogetherManager.isHost) {
+                                    WatchTogetherManager.broadcastPlayback(
+                                        isPlaying = true,
+                                        position = 0L,
+                                        episodeIndex = it
+                                    )
+                                }
+                            }
                         }
                     },
                     { downloadClickEvent ->

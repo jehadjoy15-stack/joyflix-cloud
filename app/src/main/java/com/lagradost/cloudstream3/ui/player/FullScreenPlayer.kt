@@ -717,6 +717,9 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         //}
     }
 
+    open fun getCurrentEpisodeIndex(): Int? = null
+    open fun loadEpisodeByIndex(index: Int) {}
+
     private fun setupWatchTogetherSync() {
         WatchTogetherManager.setOnRemoteSyncListener { state ->
             activity?.runOnUiThread {
@@ -724,6 +727,16 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 val p = player
                 WatchTogetherManager.isApplyingRemoteSync = true
                 try {
+                    // Check if episode changed (and we're not the host)
+                    val remoteEpisode = state.episodeIndex
+                    if (remoteEpisode != null && !WatchTogetherManager.isHost) {
+                        val currentEpisode = getCurrentEpisodeIndex()
+                        if (currentEpisode != null && currentEpisode != remoteEpisode) {
+                            loadEpisodeByIndex(remoteEpisode)
+                            return@runOnUiThread
+                        }
+                    }
+
                     if (state.isPlaying != p.getIsPlaying()) {
                         val cmd = if (state.isPlaying) CSPlayerEvent.Play else CSPlayerEvent.Pause
                         p.handleEvent(cmd, PlayerEventSource.Sync)
@@ -790,7 +803,8 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                     title = title,
                     streamUrl = null,
                     currentPos = currentPos,
-                    isPlaying = isPlaying
+                    isPlaying = isPlaying,
+                    episodeIndex = getCurrentEpisodeIndex()
                 )
                 act.runOnUiThread {
                     binding.watchTogetherLoading.isVisible = false
@@ -823,21 +837,27 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                             binding.watchTogetherLoading.isVisible = false
                             showToast(R.string.room_joined_success)
                             updateUI()
-                            // Immediately sync playback with room state
-                            WatchTogetherManager.isApplyingRemoteSync = true
-                            try {
-                                val state = room.playback
-                                val elapsed = if (state.updatedAt > 0) (System.currentTimeMillis() - state.updatedAt).coerceAtLeast(0L) else 0L
-                                val targetPos = if (state.isPlaying) state.position + elapsed else state.position
-                                player.seekTo(targetPos, PlayerEventSource.Sync)
-                                if (state.isPlaying != player.getIsPlaying()) {
-                                    val cmd = if (state.isPlaying) CSPlayerEvent.Play else CSPlayerEvent.Pause
-                                    player.handleEvent(cmd, PlayerEventSource.Sync)
+                            // Immediately sync episode and playback with room state
+                            val state = room.playback
+                            val targetEpisode = state.episodeIndex ?: room.episodeIndex
+                            val currentEpisode = getCurrentEpisodeIndex()
+                            if (targetEpisode != null && currentEpisode != null && currentEpisode != targetEpisode) {
+                                loadEpisodeByIndex(targetEpisode)
+                            } else {
+                                WatchTogetherManager.isApplyingRemoteSync = true
+                                try {
+                                    val elapsed = if (state.updatedAt > 0) (System.currentTimeMillis() - state.updatedAt).coerceAtLeast(0L) else 0L
+                                    val targetPos = if (state.isPlaying) state.position + elapsed else state.position
+                                    player.seekTo(targetPos, PlayerEventSource.Sync)
+                                    if (state.isPlaying != player.getIsPlaying()) {
+                                        val cmd = if (state.isPlaying) CSPlayerEvent.Play else CSPlayerEvent.Pause
+                                        player.handleEvent(cmd, PlayerEventSource.Sync)
+                                    }
+                                } finally {
+                                    playerHostView?.postDelayed({
+                                        WatchTogetherManager.isApplyingRemoteSync = false
+                                    }, 600L)
                                 }
-                            } finally {
-                                playerHostView?.postDelayed({
-                                    WatchTogetherManager.isApplyingRemoteSync = false
-                                }, 600L)
                             }
                         }
                     },
@@ -1038,24 +1058,28 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         if (event.source == PlayerEventSource.Sync) return
         if (!WatchTogetherManager.isInRoom) return
 
+        val epIndex = getCurrentEpisodeIndex()
         when (event) {
             is PlayEvent -> {
                 WatchTogetherManager.broadcastPlayback(
                     isPlaying = true,
-                    position = player.getPosition() ?: 0L
+                    position = player.getPosition() ?: 0L,
+                    episodeIndex = epIndex
                 )
             }
             is PauseEvent -> {
                 WatchTogetherManager.broadcastPlayback(
                     isPlaying = false,
-                    position = player.getPosition() ?: 0L
+                    position = player.getPosition() ?: 0L,
+                    episodeIndex = epIndex
                 )
             }
             is PositionEvent -> {
                 if (event.source == PlayerEventSource.UI) {
                     WatchTogetherManager.broadcastPlayback(
                         isPlaying = player.getIsPlaying(),
-                        position = event.toMs
+                        position = event.toMs,
+                        episodeIndex = epIndex
                     )
                 }
             }
