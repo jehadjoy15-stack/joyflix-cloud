@@ -306,7 +306,13 @@ class HomeViewModel : ViewModel() {
         }
 
         val add = addItems.amap { searchResponse ->
-            repo?.load(searchResponse.url)
+            val targetRepo = if (repo?.name == allSourcesApi.name) {
+                val api = getApiFromNameNull(searchResponse.apiName)
+                if (api != null) APIRepository(api) else repo
+            } else {
+                repo
+            }
+            targetRepo?.load(searchResponse.url)
         }.mapNotNull { if (it != null && it is Resource.Success) it.value else null }
         current.addAll(add)
         return add.size
@@ -359,31 +365,33 @@ class HomeViewModel : ViewModel() {
 
                 targetApis.amap { provider ->
                     try {
-                        withTimeoutOrNull(6000L) {
+                        withTimeoutOrNull(12000L) {
                             val providerRepo = APIRepository(provider)
                             val data = providerRepo.getMainPage(1, null)
                             if (data is Resource.Success) {
                                 val listItems = mutableListOf<Pair<String, ExpandableHomepageList>>()
                                 data.value.forEach { home ->
                                     home?.items?.forEach { list ->
-                                        val listTitle = if (targetApis.size > 1) "${provider.name} • ${list.name}" else list.name
                                         val filteredList = context?.filterHomePageListByFilmQuality(list) ?: list
-                                        val expItem = ExpandableHomepageList(
-                                            filteredList.copy(
-                                                name = listTitle,
-                                                list = CopyOnWriteArrayList(filteredList.list)
-                                            ), 1, home.hasNext
-                                        )
-                                        listItems.add(listTitle to expItem)
-                                        synchronized(expandable) {
-                                            expandable[listTitle] = expItem
-                                            allItems.add(expItem.list)
+                                        if (filteredList.list.isNotEmpty()) {
+                                            val listTitle = if (targetApis.size > 1) "${provider.name} • ${list.name}" else list.name
+                                            val expItem = ExpandableHomepageList(
+                                                filteredList.copy(
+                                                    name = listTitle,
+                                                    list = CopyOnWriteArrayList(filteredList.list)
+                                                ), 1, home.hasNext
+                                            )
+                                            listItems.add(listTitle to expItem)
+                                            synchronized(expandable) {
+                                                expandable[listTitle] = expItem
+                                                allItems.add(expItem.list)
+                                            }
                                         }
                                     }
                                 }
                                 if (listItems.isNotEmpty()) {
                                     synchronized(expandable) {
-                                        _page.postValue(Resource.Success(HashMap(expandable)))
+                                        _page.postValue(Resource.Success(LinkedHashMap(expandable)))
                                     }
                                 }
                                 listItems
@@ -421,7 +429,7 @@ class HomeViewModel : ViewModel() {
 
                 synchronized(expandable) {
                     if (expandable.isNotEmpty()) {
-                        _page.postValue(Resource.Success(HashMap(expandable)))
+                        _page.postValue(Resource.Success(LinkedHashMap(expandable)))
                     } else {
                         if (PluginManager.isSyncingPlugins || !PluginManager.loadedOnlinePlugins) {
                             _page.postValue(Resource.Loading())

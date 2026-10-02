@@ -1285,6 +1285,7 @@ class ResultViewModel2 : ViewModel() {
                 sourceTypes = sourceTypes,
                 callback = { (link, _) ->
                     if (link != null &&
+                        !com.lagradost.cloudstream3.utils.DeadLinkManager.isDead(link.url) &&
                         !link.name.contains("netflix", ignoreCase = true) &&
                         !link.source.contains("netflix", ignoreCase = true) &&
                         !link.name.contains("netmirror", ignoreCase = true) &&

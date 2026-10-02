@@ -1565,6 +1565,10 @@ class GeneratorPlayer : FullScreenPlayer() {
     override fun playerError(exception: Throwable) {
         currentSelectedLink?.let { link ->
             viewModel.modifyState { this.addError(link) }
+            val url = link.first?.url ?: link.second?.uri?.toString()
+            if (!url.isNullOrBlank()) {
+                com.lagradost.cloudstream3.utils.DeadLinkManager.markDead(url, "Player error: ${exception.message}")
+            }
         }
 
         val currentUrl =

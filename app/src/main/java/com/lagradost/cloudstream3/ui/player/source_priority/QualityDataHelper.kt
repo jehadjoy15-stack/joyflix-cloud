@@ -261,6 +261,6 @@ object QualityDataHelper {
 }
 
 sealed class ProfileSettings<T>(val key: String, val defaultValue: T) {
-    object HideErrorSources : ProfileSettings<Boolean>("hide_error_sources", false)
+    object HideErrorSources : ProfileSettings<Boolean>("hide_error_sources", true)
     object HideNegativeSources : ProfileSettings<Boolean>("hide_negative_sources", false)
 }

@@ -84,8 +84,10 @@ data class VideoState(
         hideErrorSources: Boolean
     ): DisplayLink {
         val priority = getLinkPriority(qualityProfile, this.first)
+        val linkUrl = this.first?.url ?: this.second?.uri?.toString()
+        val isDead = com.lagradost.cloudstream3.utils.DeadLinkManager.isDead(linkUrl)
         val shouldHideLink =
-            (hideNegativeSources && priority < 0) || (hideErrorSources && hasLinkErrored(this))
+            isDead || (hideNegativeSources && priority < 0) || (hideErrorSources && hasLinkErrored(this))
         val displayLink = DisplayLink(this, !shouldHideLink, priority)
 
         return displayLink

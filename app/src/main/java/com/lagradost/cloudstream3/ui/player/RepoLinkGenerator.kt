@@ -136,7 +136,8 @@ class RepoLinkGenerator(
                 if (link.name.contains("netflix", ignoreCase = true) ||
                     link.source.contains("netflix", ignoreCase = true) ||
                     link.name.contains("netmirror", ignoreCase = true) ||
-                    link.source.contains("netmirror", ignoreCase = true)) {
+                    link.source.contains("netmirror", ignoreCase = true) ||
+                    com.lagradost.cloudstream3.utils.DeadLinkManager.isDead(link.url)) {
                     return@loadLinks
                 }
                 Log.d(TAG, "Loaded ExtractorLink: $link")

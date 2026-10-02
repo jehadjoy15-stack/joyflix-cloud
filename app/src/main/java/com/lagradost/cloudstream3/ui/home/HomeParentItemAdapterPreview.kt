@@ -661,22 +661,20 @@ class HomeParentItemAdapterPreview(
 
             when (preview) {
                 is Resource.Success -> {
+                    if (preview.value.second.isEmpty()) {
+                        previewAdapter.submitList(listOf())
+                        previewViewpager.setCurrentItem(0, false)
+                        previewViewpager.isVisible = false
+                        previewViewpagerText.isVisible = false
+                        alternativeAccountPadding?.isVisible = true
+                        (binding as? FragmentHomeHeadTvBinding)?.apply {
+                            homePreviewInfoBtt.isVisible = false
+                        }
+                        return
+                    }
+
                     previewAdapter.submitList(preview.value.second)
                     previewAdapter.hasMoreItems = preview.value.first
-                    /*if (!.setItems(
-                            preview.value.second,
-                            preview.value.first
-                        )
-                    ) {
-                        // this might seam weird and useless, however this prevents a very weird andrid bug were the viewpager is not rendered properly
-                        // I have no idea why that happens, but this is my ducktape solution
-                        previewViewpager.setCurrentItem(0, false)
-                        previewViewpager.beginFakeDrag()
-                        previewViewpager.fakeDragBy(1f)
-                        previewViewpager.endFakeDrag()
-                        previewCallback.onPageSelected(0)
-                        //previewHeader.isVisible = true
-                    }*/
 
                     previewViewpager.isVisible = true
                     previewViewpagerText.isVisible = true
