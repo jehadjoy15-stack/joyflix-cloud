@@ -260,6 +260,12 @@ object PluginManager {
                 logError(t)
             }
 
+            // If we already have plugins loaded, trigger an early homepage load so user doesn't wait
+            if (getPluginsOnline().isNotEmpty() || getPluginsLocal().isNotEmpty()) {
+                Log.i(TAG, "JoyFlix sync: Found local/cached plugins, triggering early homepage load...")
+                afterPluginsLoadedEvent.invoke(false)
+            }
+
             // 2. Fetch all repository URLs
             val urls = (RepositoryManager.getRepositories() + PREBUILT_REPOSITORIES)
                 .distinctBy { it.url }
@@ -307,16 +313,37 @@ object PluginManager {
                     !localPath.exists()
                 }
 
-                Log.i(TAG, "JoyFlix sync: Downloading ${notDownloadedPlugins.size} new plugins...")
-                notDownloadedPlugins.amap { pluginData ->
-                    downloadPlugin(
-                        activity,
-                        pluginData.plugin.url,
-                        pluginData.plugin.fileHash,
-                        pluginData.plugin.internalName,
-                        pluginData.repositoryData.url,
-                        true
-                    )
+                Log.i(TAG, "JoyFlix sync: Found ${notDownloadedPlugins.size} new plugins to download")
+                
+                val coreFeaturedPlugins = setOf(
+                    "BanglaPlex", "9kMovies", "TheMoviesFlix", "Bollyflix", "VegaMovies",
+                    "Moviesmod", "CineStream", "AllMovieLandProvider", "SoraStream", "SuperStream",
+                    "AnimePahe", "FullReplays", "FootReplays", "MoviesDrive", "BdixCircleftp",
+                    "BdixDhakaFlix", "BdixICCFtp", "Mp4Moviez"
+                )
+
+                val prioritizedPlugins = notDownloadedPlugins.sortedByDescending {
+                    coreFeaturedPlugins.contains(it.plugin.internalName) || coreFeaturedPlugins.contains(it.plugin.name)
+                }
+
+                var batchCount = 0
+                for (chunk in prioritizedPlugins.chunked(3)) {
+                    chunk.amap { pluginData ->
+                        downloadPlugin(
+                            activity,
+                            pluginData.plugin.url,
+                            pluginData.plugin.fileHash,
+                            pluginData.plugin.internalName,
+                            pluginData.repositoryData.url,
+                            true
+                        )
+                    }
+                    batchCount += chunk.size
+                    // Trigger UI update early once top featured plugins arrive
+                    if (batchCount in 3..6) {
+                        Log.i(TAG, "JoyFlix sync: Core batch loaded, notifying Home UI...")
+                        afterPluginsLoadedEvent.invoke(false)
+                    }
                 }
             }
         } catch (e: Throwable) {

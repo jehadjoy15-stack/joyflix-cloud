@@ -348,25 +348,42 @@ class HomeViewModel : ViewModel() {
             try {
                 expandable.clear()
                 val allItems = mutableListOf<HomePageList>()
-                val fetchedLists: List<Pair<String, ExpandableHomepageList>> = validAPIs.amap { provider ->
+
+                val targetApis = if (validAPIs.size > 10) {
+                    val pinned = DataStoreHelper.pinnedProviders.toSet()
+                    val (pinnedApis, unpinnedApis) = validAPIs.partition { pinned.contains(it.name) }
+                    (pinnedApis + unpinnedApis).take(10)
+                } else {
+                    validAPIs
+                }
+
+                targetApis.amap { provider ->
                     try {
-                        withTimeoutOrNull(8000L) {
+                        withTimeoutOrNull(6000L) {
                             val providerRepo = APIRepository(provider)
                             val data = providerRepo.getMainPage(1, null)
                             if (data is Resource.Success) {
                                 val listItems = mutableListOf<Pair<String, ExpandableHomepageList>>()
                                 data.value.forEach { home ->
                                     home?.items?.forEach { list ->
-                                        val listTitle = if (validAPIs.size > 1) "${provider.name} • ${list.name}" else list.name
+                                        val listTitle = if (targetApis.size > 1) "${provider.name} • ${list.name}" else list.name
                                         val filteredList = context?.filterHomePageListByFilmQuality(list) ?: list
-                                        listItems.add(
-                                            listTitle to ExpandableHomepageList(
-                                                filteredList.copy(
-                                                    name = listTitle,
-                                                    list = CopyOnWriteArrayList(filteredList.list)
-                                                ), 1, home.hasNext
-                                            )
+                                        val expItem = ExpandableHomepageList(
+                                            filteredList.copy(
+                                                name = listTitle,
+                                                list = CopyOnWriteArrayList(filteredList.list)
+                                            ), 1, home.hasNext
                                         )
+                                        listItems.add(listTitle to expItem)
+                                        synchronized(expandable) {
+                                            expandable[listTitle] = expItem
+                                            allItems.add(expItem.list)
+                                        }
+                                    }
+                                }
+                                if (listItems.isNotEmpty()) {
+                                    synchronized(expandable) {
+                                        _page.postValue(Resource.Success(HashMap(expandable)))
                                     }
                                 }
                                 listItems
@@ -376,20 +393,17 @@ class HomeViewModel : ViewModel() {
                         logError(t)
                         emptyList()
                     }
-                }.flatten()
-
-                fetchedLists.forEach { (listTitle, expandableItem) ->
-                    expandable[listTitle] = expandableItem
-                    allItems.add(expandableItem.list)
                 }
 
                 previewResponses.clear()
                 previewResponsesAdded.clear()
 
-                val currentList = allItems.filter { it.list.isNotEmpty() }
-                    .flatMap { it.list }
-                    .distinctBy { it.url }
-                    .shuffled()
+                val currentList = synchronized(expandable) {
+                    allItems.filter { it.list.isNotEmpty() }
+                        .flatMap { it.list }
+                        .distinctBy { it.url }
+                        .shuffled()
+                }
 
                 if (currentList.isNotEmpty()) {
                     currentShuffledList = currentList
@@ -405,14 +419,14 @@ class HomeViewModel : ViewModel() {
                     _preview.postValue(Resource.Loading())
                 }
 
-                if (expandable.isNotEmpty()) {
-                    _page.postValue(Resource.Success(expandable))
-                } else {
-                    _page.postValue(Resource.Loading())
-                    if (!PluginManager.isSyncingPlugins && PluginManager.loadedOnlinePlugins) {
-                        delay(2000)
-                        if (page.value is Resource.Loading) {
-                            afterPluginsLoaded(true)
+                synchronized(expandable) {
+                    if (expandable.isNotEmpty()) {
+                        _page.postValue(Resource.Success(HashMap(expandable)))
+                    } else {
+                        if (PluginManager.isSyncingPlugins || !PluginManager.loadedOnlinePlugins) {
+                            _page.postValue(Resource.Loading())
+                        } else {
+                            _page.postValue(Resource.Failure(false, "No homepage items found. Pull to refresh or check extensions in Settings."))
                         }
                     }
                 }

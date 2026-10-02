@@ -1,5 +1,6 @@
 package com.lagradost.cloudstream3.syncproviders.providers
 
+import android.util.Base64
 import androidx.annotation.StringRes
 import androidx.core.net.toUri
 import com.fasterxml.jackson.annotation.JsonIgnore
@@ -7,6 +8,7 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.APIHolder
 import com.lagradost.cloudstream3.BuildConfig
+import java.security.MessageDigest
 import com.lagradost.cloudstream3.CloudStreamApp.Companion.getKey
 import com.lagradost.cloudstream3.CloudStreamApp.Companion.getKeys
 import com.lagradost.cloudstream3.CloudStreamApp.Companion.removeKey
@@ -261,8 +263,10 @@ class SimklApi : SyncAPI() {
         data class TokenResponse(
             /** No expiration date */
             @JsonProperty("access_token") @SerialName("access_token") val accessToken: String,
-            @JsonProperty("token_type") @SerialName("token_type") val tokenType: String,
-            @JsonProperty("scope") @SerialName("scope") val scope: String,
+            @JsonProperty("token_type") @SerialName("token_type") val tokenType: String? = null,
+            @JsonProperty("scope") @SerialName("scope") val scope: String? = null,
+            @JsonProperty("refresh_token") @SerialName("refresh_token") val refreshToken: String? = null,
+            @JsonProperty("expires_in") @SerialName("expires_in") val expiresIn: Long? = null,
         )
 
         /** https://simkl.docs.apiary.io/#reference/users/settings/receive-settings */
@@ -285,12 +289,14 @@ class SimklApi : SyncAPI() {
 
         @Serializable
         data class PinAuthResponse(
-            @JsonProperty("result") @SerialName("result") val result: String,
+            @JsonProperty("result") @SerialName("result") val result: String? = null,
             @JsonProperty("device_code") @SerialName("device_code") val deviceCode: String,
             @JsonProperty("user_code") @SerialName("user_code") val userCode: String,
-            @JsonProperty("verification_url") @SerialName("verification_url") val verificationUrl: String,
-            @JsonProperty("expires_in") @SerialName("expires_in") val expiresIn: Int,
-            @JsonProperty("interval") @SerialName("interval") val interval: Int,
+            @JsonProperty("verification_url") @SerialName("verification_url") val verificationUrl: String? = null,
+            @JsonProperty("verification_uri") @SerialName("verification_uri") val verificationUri: String? = null,
+            @JsonProperty("verification_uri_complete") @SerialName("verification_uri_complete") val verificationUriComplete: String? = null,
+            @JsonProperty("expires_in") @SerialName("expires_in") val expiresIn: Int? = null,
+            @JsonProperty("interval") @SerialName("interval") val interval: Int? = null,
         )
 
         @Serializable
@@ -988,12 +994,34 @@ class SimklApi : SyncAPI() {
         ).parsedSafe<Array<MediaObject>>()?.mapNotNull { it.toSyncSearchResult() }
     }
 
+    private fun generateCodeVerifier(): String {
+        val secureRandom = SecureRandom()
+        val code = ByteArray(32)
+        secureRandom.nextBytes(code)
+        return Base64.encodeToString(
+            code,
+            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
+        )
+    }
+
+    private fun generateCodeChallenge(verifier: String): String {
+        val bytes = verifier.toByteArray(Charsets.US_ASCII)
+        val md = MessageDigest.getInstance("SHA-256")
+        val digest = md.digest(bytes)
+        return Base64.encodeToString(
+            digest,
+            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
+        )
+    }
+
     override fun loginRequest(): AuthLoginPage? {
         val lastLoginState = BigInteger(130, SecureRandom()).toString(32)
-        val url = "https://simkl.com/oauth/authorize?response_type=code&client_id=$CLIENT_ID&redirect_uri=$APP_STRING://$redirectUrlIdentifier&state=$lastLoginState"
+        val codeVerifier = generateCodeVerifier()
+        val codeChallenge = generateCodeChallenge(codeVerifier)
+        val url = "https://simkl.com/oauth2/authorize?response_type=code&client_id=$CLIENT_ID&redirect_uri=$APP_STRING://$redirectUrlIdentifier&state=$lastLoginState&code_challenge=$codeChallenge&code_challenge_method=S256"
         return AuthLoginPage(
             url = url,
-            payload = lastLoginState,
+            payload = "$lastLoginState::$codeVerifier",
         )
     }
 
@@ -1096,19 +1124,41 @@ class SimklApi : SyncAPI() {
     }
 
     override suspend fun pinRequest(): AuthPinData? {
-        val pinAuthResp = app.get(
-            "$mainUrl/oauth/pin?client_id=$CLIENT_ID&redirect_uri=$APP_STRING://$redirectUrlIdentifier"
-        ).parsedSafe<PinAuthResponse>() ?: return null
+        val pinAuthResp = app.post(
+            "$mainUrl/oauth2/device",
+            data = mapOf(
+                "client_id" to CLIENT_ID,
+                "scope" to "media:read media:write"
+            )
+        ).parsedSafe<PinAuthResponse>() ?: run {
+            app.get(
+                "$mainUrl/oauth/pin?client_id=$CLIENT_ID&redirect_uri=$APP_STRING://$redirectUrlIdentifier"
+            ).parsedSafe<PinAuthResponse>()
+        } ?: return null
+
         return AuthPinData(
             deviceCode = pinAuthResp.deviceCode,
             userCode = pinAuthResp.userCode,
-            verificationUrl = pinAuthResp.verificationUrl,
-            expiresIn = pinAuthResp.expiresIn,
-            interval = pinAuthResp.interval,
+            verificationUrl = pinAuthResp.verificationUriComplete ?: pinAuthResp.verificationUri ?: pinAuthResp.verificationUrl ?: "https://simkl.com/pin",
+            expiresIn = pinAuthResp.expiresIn ?: 900,
+            interval = pinAuthResp.interval ?: 5,
         )
     }
 
     override suspend fun login(payload: AuthPinData): AuthToken? {
+        val resp = app.post(
+            "$mainUrl/oauth2/token",
+            data = mapOf(
+                "grant_type" to "urn:ietf:params:oauth:grant-type:device_code",
+                "client_id" to CLIENT_ID,
+                "device_code" to payload.deviceCode
+            )
+        ).parsedSafe<TokenResponse>()
+        if (resp?.accessToken != null) {
+            return AuthToken(
+                accessToken = resp.accessToken,
+            )
+        }
         val pinAuthResp = app.get(
             "$mainUrl/oauth/pin/${payload.userCode}?client_id=$CLIENT_ID"
         ).parsedSafe<PinExchangeResponse>() ?: return null
@@ -1120,13 +1170,33 @@ class SimklApi : SyncAPI() {
     override suspend fun login(redirectUrl: String, payload: String?): AuthToken? {
         val uri = redirectUrl.toUri()
         val state = uri.getQueryParameter("state")
+        val expectedState = payload?.substringBefore("::")
+        val codeVerifier = payload?.substringAfter("::")
         // Ensure consistent state
-        if (state != payload) return null
+        if (state.isNullOrEmpty() || (expectedState != null && state != expectedState)) return null
 
         val code = uri.getQueryParameter("code") ?: return null
+        val params = mutableMapOf(
+            "grant_type" to "authorization_code",
+            "client_id" to CLIENT_ID,
+            "code" to code,
+            "redirect_uri" to "$APP_STRING://$redirectUrlIdentifier",
+        )
+        if (!codeVerifier.isNullOrEmpty() && codeVerifier != payload) {
+            params["code_verifier"] = codeVerifier
+        }
+        if (CLIENT_SECRET.isNotBlank()) {
+            params["client_secret"] = CLIENT_SECRET
+        }
+
         val tokenResponse = app.post(
-            "$mainUrl/oauth/token", json = TokenRequest(code)
-        ).parsedSafe<TokenResponse>() ?: return null
+            "$mainUrl/oauth2/token", data = params
+        ).parsedSafe<TokenResponse>() ?: run {
+            app.post(
+                "$mainUrl/oauth/token", json = TokenRequest(code)
+            ).parsedSafe<TokenResponse>()
+        } ?: return null
+
         return AuthToken(
             accessToken = tokenResponse.accessToken,
         )

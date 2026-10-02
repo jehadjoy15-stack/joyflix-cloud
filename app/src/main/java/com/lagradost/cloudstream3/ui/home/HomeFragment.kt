@@ -846,10 +846,18 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
                     is Resource.Success -> {
                         val d = data.value
                         if (d.isEmpty()) {
-                            homeLoadingShimmer.startShimmer()
-                            homeLoading.isVisible = true
-                            homeLoadingError.isVisible = false
-                            homeMasterRecycler.isInvisible = true
+                            if (PluginManager.isSyncingPlugins || !PluginManager.loadedOnlinePlugins) {
+                                homeLoadingShimmer.startShimmer()
+                                homeLoading.isVisible = true
+                                homeLoadingError.isVisible = false
+                                homeMasterRecycler.isInvisible = true
+                            } else {
+                                homeLoadingShimmer.stopShimmer()
+                                homeLoading.isVisible = false
+                                homeLoadingError.isVisible = true
+                                homeMasterRecycler.isInvisible = true
+                                resultErrorText.text = getString(R.string.no_data)
+                            }
                             return@observe
                         }
 
