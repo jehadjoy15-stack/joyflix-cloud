@@ -16,10 +16,11 @@ import com.lagradost.cloudstream3.databinding.DialogWatchTogetherBinding
 import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.ui.result.START_ACTION_LOAD_EP
 import com.lagradost.cloudstream3.utils.AppContextUtils.loadResult
-import com.lagradost.cloudstream3.utils.AppUtils.dismissSafe
 import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.lagradost.cloudstream3.utils.Coroutines.ioSafe
 import com.lagradost.cloudstream3.utils.UIHelper.clipboardHelper
+import com.lagradost.cloudstream3.utils.UIHelper.dismissSafe
+import com.lagradost.cloudstream3.utils.txt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -602,7 +603,7 @@ object WatchTogetherManager {
 
         binding.btnCopyRoomCode.setOnClickListener {
             val code = currentRoomId ?: return@setOnClickListener
-            clipboardHelper(activity.getString(R.string.room_code), code)
+            clipboardHelper(txt(R.string.room_code), code)
             showToast(R.string.room_code_copied)
         }
 

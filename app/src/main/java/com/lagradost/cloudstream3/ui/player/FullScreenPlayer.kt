@@ -237,6 +237,9 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
     }
 
     override fun onDestroyView() {
+        hideChatToastRunnable?.let { playerBinding?.playerChatToastContainer?.removeCallbacks(it) }
+        hideChatToastRunnable = null
+        WatchTogetherManager.setOnNewMessageListener(null)
         WatchTogetherManager.setOnRemoteSyncListener(null)
         WatchTogetherManager.setOnRoomClosedListener(null)
         WatchTogetherManager.leaveRoom()
@@ -1856,12 +1859,5 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 }
                 .start()
         }
-    }
-
-    override fun onDestroyView() {
-        hideChatToastRunnable?.let { playerBinding?.playerChatToastContainer?.removeCallbacks(it) }
-        hideChatToastRunnable = null
-        WatchTogetherManager.setOnNewMessageListener(null)
-        super.onDestroyView()
     }
 }

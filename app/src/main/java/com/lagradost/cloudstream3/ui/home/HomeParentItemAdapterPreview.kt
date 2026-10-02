@@ -586,12 +586,12 @@ class HomeParentItemAdapterPreview(
             }
 
             headWatchTogether?.setOnClickListener {
-                activity?.let { act ->
+                (activity as? androidx.fragment.app.FragmentActivity)?.let { act ->
                     WatchTogetherManager.showWatchTogetherHomeDialog(act)
                 }
             }
             alternateHeadWatchTogether?.setOnClickListener {
-                activity?.let { act ->
+                (activity as? androidx.fragment.app.FragmentActivity)?.let { act ->
                     WatchTogetherManager.showWatchTogetherHomeDialog(act)
                 }
             }
