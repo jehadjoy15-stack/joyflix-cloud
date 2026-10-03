@@ -1290,7 +1290,8 @@ open class ResultFragmentPhone : BaseFragment<FragmentResultSwipeBinding>(
                         viewModel.updateWatchStatus(selectedType, context)
                         val title = (viewModel.page.value as? Resource.Success)?.value?.title
                             ?: getStoredData()?.name
-                        syncModel.setAndPublishStatus(selectedType.toSyncWatchType(), title)
+                        val syncData = (viewModel.page.value as? Resource.Success)?.value?.syncData
+                        syncModel.setAndPublishStatus(selectedType.toSyncWatchType(), title, syncData)
                     }
                 }
             }

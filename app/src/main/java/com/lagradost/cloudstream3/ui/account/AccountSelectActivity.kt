@@ -1,6 +1,7 @@
 package com.lagradost.cloudstream3.ui.account
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.fragment.app.FragmentActivity
@@ -209,6 +210,22 @@ class AccountSelectActivity : FragmentActivity(), BiometricCallback {
         }
 
         askBiometricAuth()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val isEditingFromMainActivity = intent.getBooleanExtra(
+            "isEditingFromMainActivity",
+            false
+        )
+        val isFromMainActivity = intent.getBooleanExtra(
+            "isFromMainActivity",
+            false
+        )
+        if (hasLoggedIn && !isEditingFromMainActivity && !isFromMainActivity) {
+            navigateToMainActivity()
+        }
     }
 
     @SuppressLint("UnsafeIntentLaunch")

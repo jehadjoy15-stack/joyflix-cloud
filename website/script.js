@@ -51,7 +51,7 @@ async function fetchLatestGitHubRelease() {
         }
 
         if (release) {
-            const rawTag = release.tag_name || 'v4.8.4';
+            const rawTag = release.tag_name || 'v4.8.5';
             const cleanVersion = rawTag.replace(/^v/i, '');
             const displayTag = rawTag.startsWith('v') ? rawTag : `v${rawTag}`;
 
@@ -161,8 +161,8 @@ function initOAuthBridge() {
     // 1. AniList (Implicit token or code)
     if (hasToken || pathname.includes('anilist')) {
         serviceName = 'AniList';
-        const params = hash ? hash : search;
-        deepLink = `joyflixapp://anilistlogin${params}`;
+        const queryParams = hash ? ('?' + hash.replace(/^#\/?/, '')) : search;
+        deepLink = `joyflixapp://anilistlogin${queryParams}`;
     }
     // 2. MAL (MyAnimeList - state contains RequestID)
     else if (search.includes('RequestID') || pathname.includes('mal')) {

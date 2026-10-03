@@ -43,7 +43,7 @@ class MALApi : SyncAPI() {
     override val hasOAuth2 = true
     override val redirectUrlIdentifier: String? = "mallogin"
     override fun isValidRedirectUrl(url: String): Boolean =
-        url.contains("/mallogin") || (url.contains("joyflix.fun") && url.contains("RequestID")) || (url.contains("RequestID") && !url.contains("/simkl") && !url.contains("/anilist"))
+        url.contains("/mallogin") || url.contains("mallogin") || (url.contains("joyflix.fun") && url.contains("RequestID")) || (url.contains("RequestID") && !url.contains("/simkl") && !url.contains("/anilist"))
     override val mainUrl = "https://myanimelist.net"
     override val icon = R.drawable.mal_logo
     override val syncIdName = SyncIdName.MyAnimeList
@@ -65,8 +65,8 @@ class MALApi : SyncAPI() {
     )
 
     override suspend fun login(redirectUrl: String, payload: String?): AuthToken? {
-        if (payload == null) return null
-        val payloadData = parseJson<Payload>(payload)
+        val savedPayload = payload ?: getKey<String>("oauth_payload_$idPrefix") ?: return null
+        val payloadData = parseJson<Payload>(savedPayload)
         val sanitizer = splitRedirectUrl(redirectUrl)
         val state = sanitizer["state"] ?: return null
 
@@ -113,11 +113,16 @@ class MALApi : SyncAPI() {
 
     override suspend fun search(auth: AuthData?, query: String): List<SyncAPI.SyncSearchResult>? {
         val auth = auth?.token?.accessToken ?: return null
-        val url = "$apiUrl/v2/anime?q=$query&limit=$MAL_MAX_SEARCH_LIMIT"
         val res = app.get(
-            url, headers = mapOf(
+            "$apiUrl/v2/anime",
+            params = mapOf(
+                "q" to query,
+                "limit" to MAL_MAX_SEARCH_LIMIT.toString(),
+            ),
+            headers = mapOf(
                 "Authorization" to "Bearer $auth",
-            ), cacheTime = 0
+            ),
+            cacheTime = 0
         ).parsed<MalSearch>()
         return res.data.map {
             val node = it.node
@@ -574,6 +579,16 @@ class MALApi : SyncAPI() {
         score: Int? = null,
         numWatchedEpisodes: Int? = null,
     ): Boolean {
+        if (status == MalStatusType.None) {
+            val res = app.delete(
+                "$apiUrl/v2/anime/$id/my_list_status",
+                headers = mapOf(
+                    "Authorization" to "Bearer ${token.accessToken}"
+                )
+            )
+            allTitles.remove(id)
+            return res.isSuccessful
+        }
         val res = setScoreRequest(
             token,
             id,

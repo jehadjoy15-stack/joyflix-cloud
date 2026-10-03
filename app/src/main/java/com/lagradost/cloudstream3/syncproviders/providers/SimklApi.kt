@@ -21,6 +21,7 @@ import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.mvvm.debugPrint
 import com.lagradost.cloudstream3.mvvm.logError
+import com.lagradost.cloudstream3.syncproviders.AccountManager
 import com.lagradost.cloudstream3.syncproviders.AccountManager.Companion.APP_STRING
 import com.lagradost.cloudstream3.syncproviders.AuthData
 import com.lagradost.cloudstream3.syncproviders.AuthLoginPage
@@ -57,7 +58,7 @@ class SimklApi : SyncAPI() {
 
     override val redirectUrlIdentifier = "simkl"
     override fun isValidRedirectUrl(url: String): Boolean =
-        url.contains("/simkl") || url.contains("/simkllogin") || (url.contains("joyflix.fun") && (url.contains("code=") || url.contains("state=")) && !url.contains("RequestID") && !url.contains("access_token"))
+        url.contains("/simkl") || url.contains("/simkllogin") || url.contains("simkl") || (url.contains("joyflix.fun") && (url.contains("code=") || url.contains("state=")) && !url.contains("RequestID") && !url.contains("access_token"))
     override val hasOAuth2 = true
     override val hasPin = true
     override var requireLibraryRefresh = true
@@ -606,7 +607,9 @@ class SimklApi : SyncAPI() {
             }
 
             debugPrint { "Requesting episodes from $url" }
-            return app.get(url, params = mapOf("client_id" to CLIENT_ID))
+            val currentAuth = AccountManager.cachedAccounts["simkl"]?.firstOrNull() ?: AccountManager.accounts("simkl").firstOrNull()
+            val headers = currentAuth?.token?.let { getHeaders(it) } ?: mapOf("simkl-api-key" to CLIENT_ID)
+            return app.get(url, params = mapOf("client_id" to CLIENT_ID), headers = headers)
                 .parsedSafe<Array<EpisodeMetadata>>()?.also {
                     val cacheTime =
                         if (hasEnded == true) SimklCache.CacheTimes.OneMonth.value else SimklCache.CacheTimes.ThirtyMinutes.value
@@ -892,7 +895,7 @@ class SimklApi : SyncAPI() {
 
         val cachedObject = SimklCache.getMediaObject(idKey)
         val searchResult: MediaObject = cachedObject
-            ?: (searchByIds(realIds)?.firstOrNull()?.also { result ->
+            ?: (searchByIds(realIds, auth)?.firstOrNull()?.also { result ->
                 val cacheTime =
                     if (result.hasEnded()) SimklCache.CacheTimes.OneMonth.value else SimklCache.CacheTimes.ThirtyMinutes.value
                 SimklCache.setMediaObject(idKey, result, Duration.parse(cacheTime))
@@ -983,19 +986,29 @@ class SimklApi : SyncAPI() {
     }
 
     /** See https://simkl.docs.apiary.io/#reference/search/id-lookup/get-items-by-id */
-    private suspend fun searchByIds(serviceMap: Map<SimklSyncServices, String>): Array<MediaObject>? {
+    private suspend fun searchByIds(
+        serviceMap: Map<SimklSyncServices, String>,
+        auth: AuthData? = null
+    ): Array<MediaObject>? {
         if (serviceMap.isEmpty()) return emptyArray()
+        val currentAuth = auth ?: AccountManager.cachedAccounts[idPrefix]?.firstOrNull() ?: AccountManager.accounts(idPrefix).firstOrNull()
+        val headers = currentAuth?.token?.let { getHeaders(it) } ?: mapOf("simkl-api-key" to CLIENT_ID)
         return app.get(
             "$mainUrl/search/id",
             params = mapOf("client_id" to CLIENT_ID) + serviceMap.map { (service, id) ->
                 service.originalName to id
-            }
+            },
+            headers = headers
         ).parsedSafe<Array<MediaObject>>()
     }
 
     override suspend fun search(auth: AuthData?, query: String): List<SyncAPI.SyncSearchResult>? {
+        val currentAuth = auth ?: AccountManager.cachedAccounts[idPrefix]?.firstOrNull() ?: AccountManager.accounts(idPrefix).firstOrNull()
+        val headers = currentAuth?.token?.let { getHeaders(it) } ?: mapOf("simkl-api-key" to CLIENT_ID)
         return app.get(
-            "$mainUrl/search/", params = mapOf("client_id" to CLIENT_ID, "q" to query)
+            "$mainUrl/search/",
+            params = mapOf("client_id" to CLIENT_ID, "q" to query),
+            headers = headers
         ).parsedSafe<Array<MediaObject>>()?.mapNotNull { it.toSyncSearchResult() }
     }
 
@@ -1175,8 +1188,9 @@ class SimklApi : SyncAPI() {
     override suspend fun login(redirectUrl: String, payload: String?): AuthToken? {
         val uri = redirectUrl.toUri()
         val state = uri.getQueryParameter("state")
-        val expectedState = payload?.substringBefore("::")
-        val codeVerifier = payload?.substringAfter("::")
+        val savedPayload = payload ?: getKey<String>("oauth_payload_$idPrefix")
+        val expectedState = savedPayload?.substringBefore("::")
+        val codeVerifier = savedPayload?.substringAfter("::")
         // Ensure consistent state
         if (state.isNullOrEmpty() || (expectedState != null && state != expectedState)) return null
 
@@ -1188,7 +1202,7 @@ class SimklApi : SyncAPI() {
             "code" to code,
             "redirect_uri" to usedRedirectUri,
         )
-        if (!codeVerifier.isNullOrEmpty() && codeVerifier != payload) {
+        if (!codeVerifier.isNullOrEmpty() && codeVerifier != savedPayload) {
             params["code_verifier"] = codeVerifier
         }
         if (CLIENT_SECRET.isNotBlank()) {

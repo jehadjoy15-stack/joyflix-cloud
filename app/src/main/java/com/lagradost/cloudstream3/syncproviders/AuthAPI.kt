@@ -12,6 +12,7 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonNames
+import java.net.URLDecoder
 import java.security.SecureRandom
 
 data class AuthLoginPage(
@@ -171,9 +172,36 @@ abstract class AuthAPI {
             get() = unixTimeMS
 
         fun splitRedirectUrl(redirectUrl: String): Map<String, String> {
-            return splitUrlParameters(
-                redirectUrl.replace(APP_STRING, "https").replace("/#", "?").replace("#", "?")
-            )
+            return try {
+                val cleaned = redirectUrl.replace("/#", "?").replace("#", "?")
+                val query = cleaned.substringAfter('?', "")
+                if (query.isNotEmpty() && query != cleaned) {
+                    query.split('&').mapNotNull { param ->
+                        val parts = param.split('=', limit = 2)
+                        if (parts.isNotEmpty() && parts[0].isNotBlank()) {
+                            val key = URLDecoder.decode(parts[0], "UTF-8")
+                            val value = if (parts.size > 1) URLDecoder.decode(parts[1], "UTF-8") else ""
+                            key to value
+                        } else null
+                    }.toMap().ifEmpty {
+                        splitUrlParameters(
+                            redirectUrl.replace(APP_STRING, "https").replace("/#", "?").replace("#", "?")
+                        )
+                    }
+                } else {
+                    splitUrlParameters(
+                        redirectUrl.replace(APP_STRING, "https").replace("/#", "?").replace("#", "?")
+                    )
+                }
+            } catch (_: Throwable) {
+                try {
+                    splitUrlParameters(
+                        redirectUrl.replace(APP_STRING, "https").replace("/#", "?").replace("#", "?")
+                    )
+                } catch (_: Throwable) {
+                    emptyMap()
+                }
+            }
         }
 
         fun generateCodeVerifier(): String {

@@ -31,6 +31,7 @@ import com.lagradost.cloudstream3.mvvm.observeNullable
 import com.lagradost.cloudstream3.services.SubscriptionWorkManager
 import com.lagradost.cloudstream3.ui.BaseFragment
 import com.lagradost.cloudstream3.ui.WatchType
+import com.lagradost.cloudstream3.ui.toSyncWatchType
 import com.lagradost.cloudstream3.ui.download.DownloadButtonSetup
 import com.lagradost.cloudstream3.ui.player.ExtractorLinkGenerator
 import com.lagradost.cloudstream3.ui.player.GeneratorPlayer
@@ -72,6 +73,7 @@ class ResultFragmentTv : BaseFragment<FragmentResultTvBinding>(
 ) {
 
     private lateinit var viewModel: ResultViewModel2
+    private lateinit var syncModel: SyncViewModel
 
     override fun onDestroyView() {
         updateUIEvent -= ::updateUI
@@ -86,6 +88,8 @@ class ResultFragmentTv : BaseFragment<FragmentResultTvBinding>(
     ): View? {
         viewModel =
             ViewModelProvider(this)[ResultViewModel2::class.java]
+        syncModel =
+            ViewModelProvider(this)[SyncViewModel::class.java]
         viewModel.EPISODE_RANGE_SIZE = 50
         updateUIEvent += ::updateUI
 
@@ -93,6 +97,7 @@ class ResultFragmentTv : BaseFragment<FragmentResultTvBinding>(
     }
 
     private fun updateUI(id: Int?) {
+        syncModel.updateUserData()
         viewModel.reloadEpisodes()
     }
 
@@ -258,6 +263,7 @@ class ResultFragmentTv : BaseFragment<FragmentResultTvBinding>(
     override fun onBindingCreated(binding: FragmentResultTvBinding) {
         // ===== setup =====
         val storedData = getStoredData() ?: return
+        syncModel.addFromUrl(storedData.url)
         activity?.window?.decorView?.clearFocus()
         activity?.loadCache()
         hideKeyboard()
@@ -583,7 +589,12 @@ class ResultFragmentTv : BaseFragment<FragmentResultTvBinding>(
                             view.context.getString(R.string.action_add_to_bookmarks),
                             showApply = false,
                             {}) {
-                            viewModel.updateWatchStatus(WatchType.entries[it], context)
+                            val selectedType = WatchType.entries[it]
+                            viewModel.updateWatchStatus(selectedType, context)
+                            val title = (viewModel.page.value as? Resource.Success)?.value?.title
+                                ?: getStoredData()?.name
+                            val syncData = (viewModel.page.value as? Resource.Success)?.value?.syncData
+                            syncModel.setAndPublishStatus(selectedType.toSyncWatchType(), title, syncData)
                         }
                     }
                 }
@@ -863,6 +874,14 @@ class ResultFragmentTv : BaseFragment<FragmentResultTvBinding>(
                 when (data) {
                     is Resource.Success -> {
                         val d = data.value
+                        if (syncModel.addSyncs(d.syncData)) {
+                            syncModel.updateMetaAndUser()
+                            syncModel.updateSynced()
+                        } else {
+                            syncModel.addFromUrl(d.url)
+                        }
+                        syncModel.addFromTitle(d.title)
+
                         resultVpn.setText(d.vpnText)
                         resultInfo.setText(d.metaText)
                         resultNoEpisodes.setText(d.noEpisodesFoundText)

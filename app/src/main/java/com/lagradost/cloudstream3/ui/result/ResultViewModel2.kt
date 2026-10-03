@@ -56,6 +56,9 @@ import com.lagradost.cloudstream3.amap
 import com.lagradost.cloudstream3.isEpisodeBased
 import com.lagradost.cloudstream3.isLiveStream
 import com.lagradost.cloudstream3.metaproviders.SyncRedirector
+import com.lagradost.cloudstream3.ui.toSyncWatchType
+import com.lagradost.cloudstream3.utils.SyncUtil
+import com.lagradost.cloudstream3.utils.Coroutines.ioSafe
 import com.lagradost.cloudstream3.mvvm.Resource
 import com.lagradost.cloudstream3.mvvm.debugAssert
 import com.lagradost.cloudstream3.mvvm.debugException
@@ -802,6 +805,12 @@ class ResultViewModel2 : ViewModel() {
             if (currentStatus != status) {
                 MainActivity.bookmarksUpdatedEvent(true)
                 MainActivity.reloadLibraryEvent(true)
+                val syncStatus = status.toSyncWatchType()
+                val syncTitle = response.name
+                val syncData = response.syncData
+                ioSafe {
+                    SyncUtil.syncStatus(syncStatus, syncTitle, syncData)
+                }
             }
 
             _watchStatus.postValue(status)

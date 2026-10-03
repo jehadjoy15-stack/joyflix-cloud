@@ -1,6 +1,8 @@
 package com.lagradost.cloudstream3.syncproviders
 
+import com.lagradost.cloudstream3.CloudStreamApp.Companion.getKey
 import com.lagradost.cloudstream3.CloudStreamApp.Companion.openBrowser
+import com.lagradost.cloudstream3.CloudStreamApp.Companion.setKey
 import com.lagradost.cloudstream3.CommonActivity.showToast
 import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.R
@@ -47,6 +49,9 @@ abstract class AuthRepo(open val api: AuthAPI) {
         val page = api.loginRequest() ?: return false
         synchronized(oauthPayload) {
             oauthPayload.put(idPrefix, page.payload)
+        }
+        if (page.payload != null) {
+            setKey("oauth_payload_$idPrefix", page.payload)
         }
         openBrowser(page.url)
         return true
@@ -159,10 +164,13 @@ abstract class AuthRepo(open val api: AuthAPI) {
 
     @Throws
     suspend fun login(redirectUrl: String): Boolean {
+        val payload = synchronized(oauthPayload) { oauthPayload[api.idPrefix] }
+            ?: getKey<String>("oauth_payload_$idPrefix")
         return setupLogin(
             api.login(
                 redirectUrl,
-                synchronized(oauthPayload) { oauthPayload[api.idPrefix] }) ?: return false
+                payload
+            ) ?: return false
         )
     }
 }

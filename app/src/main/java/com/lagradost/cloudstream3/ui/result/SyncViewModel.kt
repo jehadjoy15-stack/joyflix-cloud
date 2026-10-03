@@ -94,6 +94,22 @@ class SyncViewModel : ViewModel() {
         map?.forEach { (prefix, id) ->
             isValid = addSync(prefix, id) || isValid
         }
+
+        val imdbId = map?.get("imdb") ?: map?.get("imdb_id")
+        if (imdbId != null && !syncs.containsKey(simklApi.idPrefix)) {
+            isValid = addSync(simklApi.idPrefix, imdbId) || isValid
+        }
+
+        val malId = map?.get("mal") ?: map?.get("mal_id")
+        if (malId != null && !syncs.containsKey(malApi.idPrefix)) {
+            isValid = addSync(malApi.idPrefix, malId) || isValid
+        }
+
+        val aniListId = map?.get("anilist") ?: map?.get("anilist_id")
+        if (aniListId != null && !syncs.containsKey(aniListApi.idPrefix)) {
+            isValid = addSync(aniListApi.idPrefix, aniListId) || isValid
+        }
+
         return isValid
     }
 
@@ -130,7 +146,18 @@ class SyncViewModel : ViewModel() {
 
     private suspend fun searchAndAttach(prefix: String, title: String): Boolean {
         if (!isRepoLoggedIn(prefix) || syncs.containsKey(prefix)) return false
-        val match = repos.firstOrNull { it.idPrefix == prefix }?.search(title)?.getOrNull()?.firstOrNull()
+        val repo = repos.firstOrNull { it.idPrefix == prefix } ?: return false
+        val cleaned = SyncUtil.cleanTitle(title)
+        var match = repo.search(cleaned).getOrNull()?.firstOrNull()
+        if (match == null && cleaned != title) {
+            match = repo.search(title).getOrNull()?.firstOrNull()
+        }
+        if (match == null) {
+            val base = SyncUtil.stripSeason(cleaned)
+            if (base != cleaned && base.isNotBlank()) {
+                match = repo.search(base).getOrNull()?.firstOrNull()
+            }
+        }
         if (match != null) {
             addSync(prefix, match.syncId)
             return true
@@ -152,8 +179,16 @@ class SyncViewModel : ViewModel() {
         }
     }
 
-    fun setAndPublishStatus(statusType: SyncWatchType, title: String? = null) = ioSafe {
-        Log.i(TAG, "setAndPublishStatus = $statusType, title = $title")
+    fun setAndPublishStatus(
+        statusType: SyncWatchType,
+        title: String? = null,
+        syncData: Map<String, String>? = null
+    ) = ioSafe {
+        Log.i(TAG, "setAndPublishStatus = $statusType, title = $title, syncData = $syncData")
+
+        if (syncData != null) {
+            addSyncs(syncData)
+        }
 
         if (!title.isNullOrBlank()) {
             var anyAdded = false
@@ -166,7 +201,8 @@ class SyncViewModel : ViewModel() {
         }
 
         if (syncs.isEmpty()) {
-            Log.w(TAG, "setAndPublishStatus: no syncs available")
+            Log.w(TAG, "setAndPublishStatus: no syncs available in local map, falling back to SyncUtil.syncStatus")
+            SyncUtil.syncStatus(statusType, title, syncData)
             return@ioSafe
         }
 

@@ -8,6 +8,9 @@ import com.lagradost.cloudstream3.APIHolder.apis
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
+import com.lagradost.cloudstream3.syncproviders.AccountManager
+import com.lagradost.cloudstream3.syncproviders.SyncAPI
+import com.lagradost.cloudstream3.ui.SyncWatchType
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.util.concurrent.TimeUnit
@@ -20,6 +23,88 @@ object SyncUtil {
     )
 
     private const val TAG = "SYNCUTIL"
+
+    fun cleanTitle(title: String): String {
+        return title
+            .replace(Regex("""(?i)\s*[\(\[](?:Dub(?:bed)?|Sub(?:bed)?|Dual[\s-]?Audio|Uncensored|Censored|Multi|ENG|JAP|RAW)[^\)\]]*[\)\]]"""), "")
+            .replace(Regex("""(?i)\s*[\(\[](?:4K|1080p|720p|HDR|HD)[^\)\]]*[\)\]]"""), "")
+            .replace(Regex("""\s*\(\d{4}\)"""), "")
+            .replace(Regex("""(?i)\s*-\s*(?:Dub(?:bed)?|Sub(?:bed)?|Dual[\s-]?Audio)"""), "")
+            .trim()
+    }
+
+    fun stripSeason(title: String): String {
+        return title
+            .replace(Regex("""(?i)\s*(?:Season\s*\d+|S\d+|\d+(?:st|nd|rd|th)\s*Season|Part\s*\d+|Cour\s*\d+).*"""), "")
+            .trim()
+    }
+
+    suspend fun syncStatus(
+        status: SyncWatchType,
+        title: String?,
+        syncData: Map<String, String>? = null,
+        extraSyncs: Map<String, String>? = null
+    ): Boolean {
+        Log.i(TAG, "syncStatus: status=$status, title=$title, syncData=$syncData")
+        var anyUpdated = false
+
+        for (repo in AccountManager.syncApis) {
+            try {
+                if (repo.authUser() == null) continue
+                val prefix = repo.idPrefix
+
+                // 1. Direct ID resolution
+                var targetId: String? = extraSyncs?.get(prefix) ?: syncData?.get(prefix) ?: syncData?.get("${prefix}_id")
+                if (targetId == null && prefix == AccountManager.simklApi.idPrefix) {
+                    targetId = syncData?.get("imdb") ?: syncData?.get("imdb_id")
+                }
+                if (targetId == null && prefix == AccountManager.malApi.idPrefix) {
+                    targetId = syncData?.get("mal") ?: syncData?.get("mal_id")
+                }
+                if (targetId == null && prefix == AccountManager.aniListApi.idPrefix) {
+                    targetId = syncData?.get("anilist") ?: syncData?.get("anilist_id")
+                }
+
+                // 2. Search fallback if targetId is still missing and title is provided
+                if (targetId.isNullOrBlank() && !title.isNullOrBlank()) {
+                    val cleaned = cleanTitle(title)
+                    var match = repo.search(cleaned).getOrNull()?.firstOrNull()
+                    if (match == null && cleaned != title) {
+                        match = repo.search(title).getOrNull()?.firstOrNull()
+                    }
+                    if (match == null) {
+                        val base = stripSeason(cleaned)
+                        if (base != cleaned && base.isNotBlank()) {
+                            match = repo.search(base).getOrNull()?.firstOrNull()
+                        }
+                    }
+                    targetId = match?.syncId
+                }
+
+                if (!targetId.isNullOrBlank()) {
+                    val currentStatus = repo.status(targetId).getOrNull()
+                    val toSend: SyncAPI.AbstractSyncStatus = if (currentStatus != null) {
+                        currentStatus.status = status
+                        currentStatus
+                    } else {
+                        SyncAPI.SyncStatus(
+                            status = status,
+                            score = null,
+                            watchedEpisodes = null,
+                            isFavorite = null,
+                            maxEpisodes = null
+                        )
+                    }
+                    Log.i(TAG, "syncStatus updating ${repo.name} ($targetId) with $status")
+                    val success = repo.updateStatus(targetId, toSend).getOrDefault(false)
+                    if (success) anyUpdated = true
+                }
+            } catch (t: Throwable) {
+                logError(t)
+            }
+        }
+        return anyUpdated
+    }
 
     private const val GOGOANIME = "Gogoanime"
     private const val NINE_ANIME = "9anime"
