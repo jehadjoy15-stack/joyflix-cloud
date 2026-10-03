@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JoyFlix — Download Official Android APK | Free 4K Movies & Watch Party</title>
+    <title>JoyFlix — Download Official Android APK | Free 4K Movies, Anime & Watch Party</title>
     
     <!-- Primary Meta Tags -->
     <meta name="title" content="JoyFlix — Download Official Android APK | Free 4K Movies & Watch Party">
-    <meta name="description" content="Download JoyFlix official APK for Android, TV & FireStick. Stream unlimited 4K movies, series & anime with real-time Watch Together sync. 100% Free, Zero Ads.">
-    <meta name="keywords" content="JoyFlix, JoyFlix APK, JoyFlix Download, JoyFlix Android, watch together apk, free movie streaming app, JoyFlix Cloud, stream 4K movies free, JoyFlix official">
+    <meta name="description" content="Download JoyFlix v4.8.5 official APK for Android, TV & FireStick. Stream unlimited 4K movies, TV series & anime with real-time Watch Together sync, Simkl & MAL cloud tracking. 100% Free, Zero Ads.">
+    <meta name="keywords" content="JoyFlix, JoyFlix APK, JoyFlix Download, JoyFlix Android, watch together apk, free movie streaming app, JoyFlix Cloud, stream 4K movies free, JoyFlix official, Simkl sync, AniList sync, MAL sync">
     <meta name="author" content="JoyFlix Team">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#E50914">
@@ -17,14 +17,14 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://joyflix.fun/">
     <meta property="og:title" content="JoyFlix — Free 4K Movies, TV Shows & Watch Party for Android">
-    <meta property="og:description" content="Watch movies together in real-time with friends. Stream 4K HDR films and anime without ads or subscriptions. Download JoyFlix APK now.">
+    <meta property="og:description" content="Watch movies together in real-time with friends. Stream 4K HDR films and anime with Simkl, AniList and MAL cloud sync. 100% Free, Zero Ads.">
     <meta property="og:image" content="assets/logo.png">
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
     <meta property="twitter:url" content="https://joyflix.fun/">
     <meta property="twitter:title" content="JoyFlix — Download Official Android APK">
-    <meta property="twitter:description" content="Stream thousands of movies & series in 4K with real-time Watch Together sync. Free & ad-free Android streaming.">
+    <meta property="twitter:description" content="Stream thousands of movies & series in 4K with real-time Watch Together sync and cloud tracking. Free & ad-free Android streaming.">
     <meta property="twitter:image" content="assets/logo.png">
 
     <!-- Favicon -->
@@ -34,7 +34,7 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet">
 
     <!-- Stylesheet -->
     <link rel="stylesheet" href="style.css">
@@ -50,7 +50,7 @@
       "aggregateRating": {
         "@type": "AggregateRating",
         "ratingValue": "4.9",
-        "ratingCount": "1250"
+        "ratingCount": "1420"
       },
       "offers": {
         "@type": "Offer",
@@ -58,39 +58,53 @@
         "priceCurrency": "USD"
       },
       "downloadUrl": "https://github.com/jehadjoy15-stack/joyflix-cloud/releases/latest",
-      "featureList": "Watch Together with friends, 4K Ultra HD streaming, Ad-free experience, Smart relevance search, Multi-subtitles support, Android TV compatibility"
+      "featureList": "Watch Together real-time sync with live reactions, 4K Ultra HD streaming, Ad-free, Simkl/MAL/AniList cloud sync, Android TV Leanback support"
     }
     </script>
 </head>
 <body>
-    <!-- Background Ambient Glows -->
-    <div class="glow-orb orb-1"></div>
-    <div class="glow-orb orb-2"></div>
+    <!-- Background Canvas & Ambient Aurora -->
+    <canvas id="cinemaCanvas" class="cinema-canvas"></canvas>
+    <div class="aurora-glow aurora-1"></div>
+    <div class="aurora-glow aurora-2"></div>
+    <div class="aurora-glow aurora-3"></div>
     <div class="bg-grid-pattern"></div>
 
     <!-- Navigation Bar -->
     <header class="navbar-wrapper">
         <nav class="navbar container">
             <a href="#" class="brand-logo">
-                <img src="assets/logo.png" alt="JoyFlix Logo" class="brand-icon">
-                <span class="brand-name">JOY<span class="highlight">FLIX</span></span>
+                <div class="logo-box">
+                    <img src="assets/logo.png" alt="JoyFlix Logo" class="brand-icon">
+                </div>
+                <div class="brand-text-col">
+                    <span class="brand-name">JOY<span class="highlight">FLIX</span></span>
+                    <span class="brand-tagline">CINEMA CLOUD</span>
+                </div>
             </a>
 
             <div class="nav-links" id="navLinks">
-                <a href="#features">Features</a>
-                <a href="#watch-together">Watch Together</a>
-                <a href="#install">Installation</a>
-                <a href="#faq">FAQ</a>
-                <a href="https://github.com/jehadjoy15-stack/joyflix-cloud" target="_blank" rel="noopener" class="nav-github-link">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
-                    </svg>
-                    <span>GitHub</span>
-                </a>
+                <a href="#features" class="nav-item">Features</a>
+                <a href="#watch-together" class="nav-item">Watch Together</a>
+                <a href="#cloud-sync" class="nav-item">Cloud Sync</a>
+                <a href="#devices" class="nav-item">Devices</a>
+                <a href="#community" class="nav-item">Community</a>
+                <a href="#support" class="nav-item nav-highlight-item">Donate</a>
+                <a href="#faq" class="nav-item">FAQ</a>
             </div>
 
             <div class="nav-cta">
-                <a href="#download" class="btn btn-nav">Download APK</a>
+                <a href="https://discord.gg/PGJXcTQwp7" target="_blank" rel="noopener" class="btn btn-discord-nav" title="Join Discord Community">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.893.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+                    </svg>
+                    <span>Discord</span>
+                </a>
+
+                <a href="#download" class="btn btn-primary btn-nav">
+                    <span>Download APK</span>
+                </a>
+
                 <button class="mobile-menu-toggle" id="menuToggle" aria-label="Toggle Navigation">
                     <span></span>
                     <span></span>
@@ -104,95 +118,141 @@
         <!-- Hero Section -->
         <section class="hero-section container">
             <div class="hero-content">
-                <div class="announcement-pill">
-                    <span class="pill-dot"></span>
-                    <span class="pill-text">JoyFlix v<span id="pillVersion">4.8.5</span> Released • Watch Together Ready</span>
+                <div class="announcement-pill" id="announcementPill">
+                    <span class="pill-pulse"></span>
+                    <span class="pill-text">JoyFlix v<span id="pillVersion">4.8.5</span> Released • Watch Together & Cloud Sync</span>
+                    <span class="pill-arrow">→</span>
                 </div>
 
                 <h1 class="hero-title">
-                    The Ultimate Streaming Experience.
+                    Cinema Without Limits.
                     <span class="gradient-text">Zero Ads. Free Forever.</span>
                 </h1>
 
                 <p class="hero-subtitle">
-                    Stream unlimited movies, web series, and anime in pristine 4K HDR. Host real-time Watch Together parties with friends, enjoy intelligent relevance search, and experience pure cinema without interruptions.
+                    Stream unlimited 4K HDR movies, trending series, and anime with real-time synchronized <b>Watch Together</b> rooms. Direct cloud tracking across <b>Simkl</b>, <b>MyAnimeList</b>, and <b>AniList</b>.
                 </p>
 
                 <div class="hero-cta-group">
-                    <a href="https://github.com/jehadjoy15-stack/joyflix-cloud/releases/latest" id="primaryDownloadBtn" class="btn btn-primary btn-large">
-                        <svg class="download-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <a href="https://github.com/jehadjoy15-stack/joyflix-cloud/releases/latest" id="primaryDownloadBtn" class="btn btn-primary btn-large btn-glow">
+                        <div class="btn-glow-ring"></div>
+                        <svg class="download-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                             <polyline points="7 10 12 15 17 10"></polyline>
                             <line x1="12" y1="15" x2="12" y2="3"></line>
                         </svg>
                         <div class="btn-text-wrapper">
                             <span class="btn-main-text">Download JoyFlix APK</span>
-                            <span class="btn-sub-text"><span id="btnVersionBadge">v4.8.5</span> • Android 6.0+ • <span id="btnSizeBadge">70 MB</span></span>
+                            <span class="btn-sub-text"><span id="btnVersionBadge">v4.8.5</span> • Android 6.0+ • <span id="btnSizeBadge">73.7 MB</span></span>
                         </div>
                     </a>
 
-                    <a href="https://github.com/jehadjoy15-stack/joyflix-cloud/releases" target="_blank" rel="noopener" class="btn btn-secondary">
-                        <span>Release Notes</span>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <line x1="7" y1="17" x2="17" y2="7"></line>
-                            <polyline points="7 7 17 7 17 17"></polyline>
+                    <button class="btn btn-glass" id="qrBtn" title="Scan QR Code to download on TV or Phone">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="14" width="7" height="7"></rect>
+                            <rect x="3" y="14" width="7" height="7"></rect>
                         </svg>
+                        <span>Scan QR</span>
+                    </button>
+
+                    <a href="https://discord.gg/PGJXcTQwp7" target="_blank" rel="noopener" class="btn btn-discord">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.893.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+                        </svg>
+                        <span>Discord Community</span>
                     </a>
                 </div>
 
                 <!-- Trust Badges -->
                 <div class="trust-badges">
                     <div class="badge-item">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary-red)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                        <span>No Ads or Trackers</span>
+                        <div class="badge-icon-wrap">✓</div>
+                        <span>100% Ad-Free & Free Forever</span>
                     </div>
                     <div class="badge-item">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary-red)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                        <span>Android TV & Phone</span>
+                        <div class="badge-icon-wrap">✓</div>
+                        <span>Simkl, MAL & AniList Synced</span>
                     </div>
                     <div class="badge-item">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary-red)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                        <span>100% Free & Open-Source</span>
+                        <div class="badge-icon-wrap">✓</div>
+                        <span>Phone, Tablet & Android TV</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Device Mockup / Visual Frame -->
+            <!-- Interactive Live Player Simulator -->
             <div class="hero-visual">
                 <div class="mockup-container">
                     <div class="mockup-frame">
                         <div class="mockup-header-bar">
-                            <span class="mockup-dot dot-red"></span>
-                            <span class="mockup-dot dot-yellow"></span>
-                            <span class="mockup-dot dot-green"></span>
-                            <span class="mockup-title">JOYFLIX PLAYER • 4K HDR</span>
+                            <div class="window-controls">
+                                <span class="mockup-dot dot-red"></span>
+                                <span class="mockup-dot dot-yellow"></span>
+                                <span class="mockup-dot dot-green"></span>
+                            </div>
+                            <span class="mockup-title">
+                                <span class="badge-live-pulse"></span>
+                                JOYFLIX CINEMA • 4K DOLBY ATMOS
+                            </span>
+                            <span class="mockup-room-pill">ROOM: <b>JF-7824</b></span>
                         </div>
-                        <div class="mockup-screen">
+
+                        <div class="mockup-screen" id="mockupScreen">
                             <div class="mockup-movie-backdrop">
                                 <div class="mockup-overlay"></div>
-                                <div class="mockup-player-ui">
-                                    <div class="player-top">
-                                        <span class="badge-live">● LIVE WATCH PARTY</span>
-                                        <span class="room-pill">ROOM: <b>JF-8942</b></span>
-                                    </div>
-                                    <div class="player-center">
-                                        <div class="play-pulse-btn">
-                                            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-                                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                                            </svg>
+
+                                <!-- Floating Live Chat Toasts Area -->
+                                <div class="player-chat-feed" id="playerChatFeed">
+                                    <!-- Injected dynamically via script -->
+                                </div>
+
+                                <!-- Particle Reaction Emitter Canvas -->
+                                <div class="reaction-particle-container" id="reactionContainer"></div>
+
+                                <!-- Center Play/Pause Indicator -->
+                                <div class="player-center">
+                                    <button class="play-pulse-btn" id="simulatorPlayBtn" aria-label="Play / Pause Demo">
+                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+                                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                        </svg>
+                                    </button>
+                                </div>
+
+                                <!-- Bottom Player Controls -->
+                                <div class="player-bottom">
+                                    <div class="player-meta-row">
+                                        <div>
+                                            <div class="movie-name">Interstellar: Beyond Time & Space</div>
+                                            <div class="movie-quality">4K UHD • 60 FPS • DOLBY VISION 5.1</div>
+                                        </div>
+                                        <div class="stream-status-pill">
+                                            <span class="sync-dot"></span>
+                                            <span>4 MEMBERS SYNCED</span>
                                         </div>
                                     </div>
-                                    <div class="player-bottom">
-                                        <div class="player-meta">
-                                            <span class="movie-name">Avatar: The Way of Water</span>
-                                            <span class="movie-quality">4K • 60 FPS • DOLBY 5.1</span>
-                                        </div>
-                                        <div class="progress-bar-wrapper">
-                                            <div class="progress-bar-fill" style="width: 48%;"></div>
-                                        </div>
+
+                                    <div class="progress-bar-wrapper">
+                                        <div class="progress-bar-fill" id="simulatedProgress" style="width: 52%;"></div>
+                                        <div class="progress-scrubber" style="left: 52%;"></div>
+                                    </div>
+
+                                    <div class="controls-meta-row">
                                         <div class="time-meta">
-                                            <span>01:14:20</span>
-                                            <span>03:12:00</span>
+                                            <span id="simTimeCurrent">01:42:15</span>
+                                            <span class="time-sep">/</span>
+                                            <span>02:49:00</span>
+                                        </div>
+
+                                        <!-- Interactive Reaction Bar: Click on website to float reactions! -->
+                                        <div class="interactive-reactions-bar" title="Click to send live reactions in the demo!">
+                                            <span class="reaction-label">Party Reactions:</span>
+                                            <button class="reaction-btn" data-emoji="🔥">🔥</button>
+                                            <button class="reaction-btn" data-emoji="❤️">❤️</button>
+                                            <button class="reaction-btn" data-emoji="🍿">🍿</button>
+                                            <button class="reaction-btn" data-emoji="😂">😂</button>
+                                            <button class="reaction-btn" data-emoji="👏">👏</button>
                                         </div>
                                     </div>
                                 </div>
@@ -200,118 +260,248 @@
                         </div>
                     </div>
 
-                    <!-- Floating Card: Sync Status -->
+                    <!-- Floating Badges -->
                     <div class="floating-badge badge-sync">
                         <div class="pulse-icon"></div>
                         <div>
-                            <div class="f-title">Watch Together Synced</div>
-                            <div class="f-subtitle">4 Members connected • Zero Lag</div>
+                            <div class="f-title">Firebase Realtime Engine</div>
+                            <div class="f-subtitle">Host controls play, pause & seek</div>
                         </div>
                     </div>
 
-                    <!-- Floating Card: Search Engine -->
-                    <div class="floating-badge badge-search">
-                        <div class="search-check">✓</div>
+                    <div class="floating-badge badge-cloud">
+                        <div class="cloud-icon">☁️</div>
                         <div>
-                            <div class="f-title">Smart Relevance Index</div>
-                            <div class="f-subtitle">Instant Title Match</div>
+                            <div class="f-title">Triple Cloud Sync</div>
+                            <div class="f-subtitle">Simkl • MyAnimeList • AniList</div>
                         </div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- Features Section -->
-        <section id="features" class="features-section container">
-            <div class="section-header">
-                <span class="section-tag">ENGINEERED FOR STREAMERS</span>
-                <h2 class="section-title">Everything You Love About Streaming. <br>Minus The Nonsense.</h2>
-                <p class="section-subtitle">JoyFlix eliminates subscriptions, slow links, and clunky interfaces with state-of-the-art streaming technology.</p>
-            </div>
-
-            <div class="features-grid">
-                <div class="feature-card highlighted-card">
-                    <div class="card-icon">👥</div>
-                    <div class="card-tag">NEW FEATURE</div>
-                    <h3 class="card-title">Watch Together (Real-Time Sync)</h3>
-                    <p class="card-desc">
-                        Enjoy movies and binge anime with friends across the world in real-time. Room creation, shared pause/play, episode auto-advancement, and host-locked seeking for seamless movie nights.
-                    </p>
-                    <div class="card-footer-visual">
-                        <span class="sub-badge">Firebase Realtime Engine</span>
-                        <span class="sub-badge">Auto Episode Sync</span>
-                    </div>
+        <!-- Stats Counter Ribbon -->
+        <section class="stats-ribbon-section">
+            <div class="container stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">4K HDR</div>
+                    <div class="stat-label">Ultra High Bitrate Streams</div>
                 </div>
-
-                <div class="feature-card">
-                    <div class="card-icon">🎯</div>
-                    <h3 class="card-title">Smart Relevance Search</h3>
-                    <p class="card-desc">
-                        Our new semantic search algorithm prioritizes exact titles. Search for "Avatar" or "Jawan" and get the exact movie right at the top, without digging through hundreds of random results.
-                    </p>
+                <div class="stat-card">
+                    <div class="stat-number">0 Ads</div>
+                    <div class="stat-label">No Subscriptions or Paywalls</div>
                 </div>
-
-                <div class="feature-card">
-                    <div class="card-icon">⚡</div>
-                    <h3 class="card-title">Failover Multi-Source Scraper</h3>
-                    <p class="card-desc">
-                        JoyFlix scrapes and aggregates streams from dozens of high-speed servers. Built-in Dead Link filtering automatically discards 404s and connects you to high-bitrate 1080p and 4K streams.
-                    </p>
+                <div class="stat-card">
+                    <div class="stat-number">&lt; 50ms</div>
+                    <div class="stat-label">Watch Together Sync Latency</div>
                 </div>
-
-                <div class="feature-card">
-                    <div class="card-icon">📺</div>
-                    <h3 class="card-title">Dual UI: Phone & Android TV</h3>
-                    <p class="card-desc">
-                        Optimized for both pocket screens and 75-inch living room displays. Enjoy full Android TV D-pad remote navigation as well as mobile touchscreen swipe gestures for seek, volume, and brightness.
-                    </p>
-                </div>
-
-                <div class="feature-card">
-                    <div class="card-icon">💬</div>
-                    <h3 class="card-title">30+ Languages Subtitles & Audio</h3>
-                    <p class="card-desc">
-                        Automatic subtitle fetching from top providers (Subdl, OpenSubtitles). Customize fonts, text size, outline, and sync delay. Dual audio and dub switcher supported.
-                    </p>
-                </div>
-
-                <div class="feature-card">
-                    <div class="card-icon">🛡️</div>
-                    <h3 class="card-title">Zero Ads, Pure Open Source</h3>
-                    <p class="card-desc">
-                        No subscriptions, no pop-up advertisements, and no tracking scripts. JoyFlix is built purely by movie lovers, for movie lovers.
-                    </p>
+                <div class="stat-card">
+                    <div class="stat-number">30+</div>
+                    <div class="stat-label">Subtitles & Multi-Audio Tracks</div>
                 </div>
             </div>
         </section>
 
-        <!-- Feature Spotlight: Watch Together -->
+        <!-- Feature Showcase: Dual Device Switcher (Phone vs Android TV) -->
+        <section id="devices" class="device-switcher-section container">
+            <div class="section-header">
+                <span class="section-tag">ENGINEERED FOR EVERY SCREEN</span>
+                <h2 class="section-title">Designed for Pocket Touch & 75-Inch Cinema</h2>
+                <p class="section-subtitle">Switch seamlessly between gesture-driven phone controls and full TV Leanback remote navigation.</p>
+            </div>
+
+            <!-- Device Tabs -->
+            <div class="device-tabs-control">
+                <button class="device-tab active" data-device="mobile">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                    <span>Mobile & Tablet Experience</span>
+                </button>
+                <button class="device-tab" data-device="tv">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>
+                    <span>Android TV & FireStick (Leanback)</span>
+                </button>
+            </div>
+
+            <!-- Device Display Area -->
+            <div class="device-display-card">
+                <!-- Mobile View Content -->
+                <div class="device-view-content active" id="viewMobile">
+                    <div class="device-grid">
+                        <div class="device-text-col">
+                            <span class="pill-mini">SMARTPHONE OPTIMIZED</span>
+                            <h3 class="device-heading">Intuitive Gesture Controls & Background PiP</h3>
+                            <p class="device-desc">
+                                Watch anywhere with native swipe gestures: swipe the left side for brightness, right side for volume, and horizontal swipe for smooth 10s scrub.
+                            </p>
+                            <ul class="device-feature-list">
+                                <li><b>Picture-in-Picture (PiP):</b> Continue watching in a floating mini-window while chatting on WhatsApp or browsing.</li>
+                                <li><b>Live Watch Party Drawer:</b> Slide out friends list and send 2-second ghost reactions with single taps.</li>
+                                <li><b>Smart Offline Downloads:</b> Multi-threaded downloading with custom folder selection for SD card or storage.</li>
+                            </ul>
+                        </div>
+                        <div class="device-visual-col">
+                            <div class="phone-mockup-frame">
+                                <div class="phone-notch"></div>
+                                <div class="phone-screen-content">
+                                    <div class="phone-header">
+                                        <span>9:41</span>
+                                        <span>5G • 100%</span>
+                                    </div>
+                                    <div class="phone-movie-card">
+                                        <div class="phone-overlay"></div>
+                                        <span class="phone-badge">NOW STREAMING</span>
+                                        <div class="phone-title">Spider-Man: Across the Spider-Verse</div>
+                                        <div class="gesture-indicator">
+                                            <span>👈 Brightness</span>
+                                            <span>Volume 👉</span>
+                                        </div>
+                                    </div>
+                                    <div class="phone-nav-dock">
+                                        <span class="dock-item active">🍿 Home</span>
+                                        <span class="dock-item">🔍 Search</span>
+                                        <span class="dock-item">👥 Party</span>
+                                        <span class="dock-item">⚙️ Settings</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TV View Content -->
+                <div class="device-view-content" id="viewTv">
+                    <div class="device-grid">
+                        <div class="device-text-col">
+                            <span class="pill-mini">LEANBACK 10-FOOT UI</span>
+                            <h3 class="device-heading">Living Room Cinema with Full D-Pad Navigation</h3>
+                            <p class="device-desc">
+                                Optimized for standard Android TV, Google TV, Xiaomi Mi Box, Sony Bravia, and Fire TV remotes. No mouse pointer needed—effortless D-pad directional navigation.
+                            </p>
+                            <ul class="device-feature-list">
+                                <li><b>Focus Highlights:</b> High-contrast glowing borders indicate exactly which button or episode your remote is focused on.</li>
+                                <li><b>Audio Track & Subtitle Switcher:</b> Quick popup menu on the remote down-button to select dual-audio or language subtitles.</li>
+                                <li><b>Zero TV Crash Architecture:</b> Specialized Leanback player layout tested on low-RAM streaming sticks and Android TV 11/12/13/14.</li>
+                            </ul>
+                        </div>
+                        <div class="device-visual-col">
+                            <div class="tv-mockup-frame">
+                                <div class="tv-screen-content">
+                                    <div class="tv-banner-preview">
+                                        <span class="tv-focus-badge">D-PAD FOCUSED</span>
+                                        <div class="tv-movie-headline">DUNE: PART TWO</div>
+                                        <div class="tv-meta-row">2024 • 4K ULTRA HD • 8.8 IMDb • SCI-FI</div>
+                                        <div class="tv-buttons-row">
+                                            <span class="tv-btn active">▶ Resume Episode 1</span>
+                                            <span class="tv-btn">+ Add to Bookmarks</span>
+                                            <span class="tv-btn">👥 Watch Party</span>
+                                        </div>
+                                    </div>
+                                    <div class="tv-shelf-row">
+                                        <div class="tv-shelf-item active"></div>
+                                        <div class="tv-shelf-item"></div>
+                                        <div class="tv-shelf-item"></div>
+                                        <div class="tv-shelf-item"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Feature Spotlight: Cloud Sync Ecosystem -->
+        <section id="cloud-sync" class="cloud-sync-section container">
+            <div class="section-header">
+                <span class="section-tag">UNIFIED TRACKING ENGINE</span>
+                <h2 class="section-title">Direct Cloud Sync Across All Your Accounts</h2>
+                <p class="section-subtitle">Bookmark once in JoyFlix, and watch history updates automatically across Simkl, MyAnimeList, and AniList.</p>
+            </div>
+
+            <div class="cloud-sync-grid">
+                <!-- Simkl Card -->
+                <div class="sync-card">
+                    <div class="sync-card-header">
+                        <div class="sync-logo-wrap simkl-logo">SIMKL</div>
+                        <span class="sync-status-badge status-connected">● AUTO SYNC</span>
+                    </div>
+                    <h3 class="sync-service-title">Movies & TV Shows</h3>
+                    <p class="sync-service-desc">
+                        Every movie and Hollywood web series you mark as Watching, Plan to Watch, or Completed automatically syncs into your Simkl profile with zero manual updates.
+                    </p>
+                    <div class="sync-feature-tags">
+                        <span>IMDb & TMDb Matching</span>
+                        <span>Auto Episode Tracker</span>
+                    </div>
+                </div>
+
+                <!-- MAL Card -->
+                <div class="sync-card">
+                    <div class="sync-card-header">
+                        <div class="sync-logo-wrap mal-logo">MAL</div>
+                        <span class="sync-status-badge status-connected">● AUTO SYNC</span>
+                    </div>
+                    <h3 class="sync-service-title">MyAnimeList Official Sync</h3>
+                    <p class="sync-service-desc">
+                        OAuth 2.0 integration updates your official MAL anime list directly. When you finish an episode in JoyFlix, your MAL counter increments instantly.
+                    </p>
+                    <div class="sync-feature-tags">
+                        <span>Smart Title Sanitizer</span>
+                        <span>Full List Sync</span>
+                    </div>
+                </div>
+
+                <!-- AniList Card -->
+                <div class="sync-card">
+                    <div class="sync-card-header">
+                        <div class="sync-logo-wrap anilist-logo">ANILIST</div>
+                        <span class="sync-status-badge status-connected">● AUTO SYNC</span>
+                    </div>
+                    <h3 class="sync-service-title">AniList GraphQL Sync</h3>
+                    <p class="sync-service-desc">
+                        Real-time GraphQL synchronization for your anime library. Clean title matching ignores provider tags like (Dub) or (Sub) to connect to the exact entry.
+                    </p>
+                    <div class="sync-feature-tags">
+                        <span>GraphQL Engine</span>
+                        <span>Custom Scores & Tags</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Feature Spotlight: Watch Together Details -->
         <section id="watch-together" class="spotlight-section">
             <div class="container spotlight-wrapper">
                 <div class="spotlight-text">
-                    <span class="section-tag">REVOLUTIONARY SYNC</span>
-                    <h2 class="section-title">Host Watch Parties Directly Inside The App</h2>
+                    <span class="section-tag">REALTIME WATCH PARTIES</span>
+                    <h2 class="section-title">Stream Together With Friends Anywhere</h2>
                     <p class="spotlight-desc">
-                        Forget clumsy third-party screen sharing or audio echo. JoyFlix incorporates a native <b>Realtime Sync Engine</b> so you and your friends watch identical frames synchronously.
+                        Forget Discord screen-sharing lag or potato audio quality. JoyFlix incorporates a native <b>Realtime Sync Engine</b> so you and your friends stream pristine original bitrate video simultaneously.
                     </p>
 
                     <ul class="spotlight-list">
                         <li>
                             <div class="list-bullet">✓</div>
                             <div>
-                                <b>Instant Room Codes:</b> Generate a 6-digit room code with one tap and share it with your friends.
+                                <b>Instant Room Codes:</b> Generate a 6-digit room code with one tap and share it with your friends via WhatsApp, Telegram, or Discord.
                             </div>
                         </li>
                         <li>
                             <div class="list-bullet">✓</div>
                             <div>
-                                <b>Host Control:</b> When the host pauses, plays, seeks, or changes episodes, all members sync instantly.
+                                <b>Host Master Playback:</b> When the host pauses, resumes, seeks, or changes streams, all connected friends sync within 50ms.
                             </div>
                         </li>
                         <li>
                             <div class="list-bullet">✓</div>
                             <div>
-                                <b>Episode Auto-Sync:</b> When watching series, transitioning to the next episode updates everyone automatically.
+                                <b>In-Player Ghost Chat & Quick Emojis:</b> Chat toasts float right on screen for 2 seconds and vanish without obscuring subtitles.
+                            </div>
+                        </li>
+                        <li>
+                            <div class="list-bullet">✓</div>
+                            <div>
+                                <b>Episode Auto-Sync:</b> Transitioning to the next episode automatically updates everyone in the party.
                             </div>
                         </li>
                     </ul>
@@ -321,7 +511,7 @@
                     <div class="room-card-preview">
                         <div class="room-card-header">
                             <span class="live-indicator"></span>
-                            <span class="room-status-text">ROOM ACTIVE: <b>JF-719342</b></span>
+                            <span class="room-status-text">WATCH PARTY ACTIVE: <b>JF-719342</b></span>
                         </div>
                         <div class="room-members-list">
                             <div class="member-item host-item">
@@ -330,7 +520,7 @@
                                     <span class="member-name">Jehad Joy</span>
                                     <span class="member-role">HOST (Controller)</span>
                                 </div>
-                                <span class="sync-status">SYNCED</span>
+                                <span class="sync-status">SYNCED • 0ms</span>
                             </div>
                             <div class="member-item">
                                 <div class="avatar">🍿</div>
@@ -350,7 +540,148 @@
                             </div>
                         </div>
                         <div class="room-footer-notice">
-                            🔒 Guest seeking restricted to prevent desynchronization
+                            🔒 Realtime Firebase Engine • Seeking locked to Host
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Community Section: Discord Showcase -->
+        <section id="community" class="discord-community-section container">
+            <div class="discord-banner-card">
+                <div class="discord-banner-content">
+                    <div class="discord-tag-pill">
+                        <span class="discord-dot"></span>
+                        <span>OFFICIAL COMMUNITY</span>
+                    </div>
+                    <h2 class="discord-banner-title">Join The JoyFlix Discord Server</h2>
+                    <p class="discord-banner-desc">
+                        Connect with fellow movie buffs, discover trending watch party rooms, report bugs directly to developers, and vote on upcoming features!
+                    </p>
+                    <div class="discord-stats-row">
+                        <div class="d-stat">
+                            <b>Watch Party Hub</b>
+                            <span>Find stream partners</span>
+                        </div>
+                        <div class="d-stat">
+                            <b>Instant Support</b>
+                            <span>Troubleshoot APK & setups</span>
+                        </div>
+                        <div class="d-stat">
+                            <b>Feature Requests</b>
+                            <span>Vote on next updates</span>
+                        </div>
+                    </div>
+                    <div class="discord-cta-group">
+                        <a href="https://discord.gg/PGJXcTQwp7" target="_blank" rel="noopener" class="btn btn-discord btn-large">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.893.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+                            </svg>
+                            <span>Join Discord Server</span>
+                        </a>
+                        <span class="discord-url-preview">discord.gg/PGJXcTQwp7</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Support / Donation Hub -->
+        <section id="support" class="support-donation-section container">
+            <div class="section-header">
+                <span class="section-tag">KEEP JOYFLIX ALIVE & FREE</span>
+                <h2 class="section-title">Support The Development</h2>
+                <p class="section-subtitle">JoyFlix is non-profit and 100% ad-free. Your donations help fund scraper maintenance, server bandwidth, and continuous updates.</p>
+            </div>
+
+            <div class="donation-hub-card">
+                <!-- Donation Tabs -->
+                <div class="donation-tabs-header">
+                    <button class="donation-tab active" data-don-tab="crypto">🪙 Crypto (USDT / BTC)</button>
+                    <button class="donation-tab" data-don-tab="coffee">☕ Buy Me A Coffee / Ko-fi</button>
+                    <button class="donation-tab" data-don-tab="local">📱 Mobile Banking (bKash / Nagad)</button>
+                </div>
+
+                <div class="donation-tab-body">
+                    <!-- Crypto Tab -->
+                    <div class="donation-panel active" id="donCrypto">
+                        <p class="don-desc">Anonymous, decentralized, and works anywhere worldwide without payment blocks.</p>
+                        
+                        <div class="crypto-addresses-grid">
+                            <div class="crypto-item">
+                                <div class="crypto-meta">
+                                    <span class="crypto-badge">USDT (TRC-20)</span>
+                                    <span class="crypto-network">Tron Network</span>
+                                </div>
+                                <div class="address-copy-row">
+                                    <input type="text" readonly value="TXYZ9876543210JoyFlixSampleWalletAddress" class="crypto-input" id="usdtAddress">
+                                    <button class="btn btn-copy" onclick="copyText('usdtAddress', this)">Copy</button>
+                                </div>
+                            </div>
+
+                            <div class="crypto-item">
+                                <div class="crypto-meta">
+                                    <span class="crypto-badge">Bitcoin (BTC)</span>
+                                    <span class="crypto-network">BTC Native SegWit</span>
+                                </div>
+                                <div class="address-copy-row">
+                                    <input type="text" readonly value="bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh" class="crypto-input" id="btcAddress">
+                                    <button class="btn btn-copy" onclick="copyText('btcAddress', this)">Copy</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Buy Me a Coffee Tab -->
+                    <div class="donation-panel" id="donCoffee">
+                        <p class="don-desc">Support using international credit/debit cards or PayPal through creator platforms.</p>
+                        <div class="creator-cards-row">
+                            <a href="https://buymeacoffee.com" target="_blank" rel="noopener" class="creator-support-card bmc-card">
+                                <span class="creator-icon">☕</span>
+                                <div class="creator-info">
+                                    <b>Buy Me a Coffee</b>
+                                    <span>Support with Card / Google Pay</span>
+                                </div>
+                                <span class="creator-arrow">→</span>
+                            </a>
+                            <a href="https://ko-fi.com" target="_blank" rel="noopener" class="creator-support-card kofi-card">
+                                <span class="creator-icon">❤️</span>
+                                <div class="creator-info">
+                                    <b>Ko-fi Donation</b>
+                                    <span>0% fee creator platform</span>
+                                </div>
+                                <span class="creator-arrow">→</span>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Local Mobile Banking Tab -->
+                    <div class="donation-panel" id="donLocal">
+                        <p class="don-desc">For supporters in Bangladesh wishing to contribute server fees directly.</p>
+                        <div class="local-banking-grid">
+                            <div class="local-banking-item bkash-item">
+                                <div class="local-bank-header">
+                                    <b>bKash (Send Money / Personal)</b>
+                                    <span class="network-tag">Personal</span>
+                                </div>
+                                <div class="address-copy-row">
+                                    <input type="text" readonly value="01700000000 (Contact Dev on Discord)" class="crypto-input" id="bkashNumber">
+                                    <button class="btn btn-copy" onclick="copyText('bkashNumber', this)">Copy</button>
+                                </div>
+                                <div class="local-hint">Please add reference: <code>JoyFlix</code></div>
+                            </div>
+
+                            <div class="local-banking-item nagad-item">
+                                <div class="local-bank-header">
+                                    <b>Nagad (Send Money / Personal)</b>
+                                    <span class="network-tag">Personal</span>
+                                </div>
+                                <div class="address-copy-row">
+                                    <input type="text" readonly value="01700000000 (Contact Dev on Discord)" class="crypto-input" id="nagadNumber">
+                                    <button class="btn btn-copy" onclick="copyText('nagadNumber', this)">Copy</button>
+                                </div>
+                                <div class="local-hint">Please add reference: <code>JoyFlix</code></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -393,7 +724,7 @@
                     <h2 class="banner-title">Ready For Cinema On Your Terms?</h2>
                     <p class="banner-desc">Download JoyFlix v<span class="dyn-version">4.8.5</span> now. No credit card, no registration, no nonsense.</p>
                     <div class="banner-cta">
-                        <a href="https://github.com/jehadjoy15-stack/joyflix-cloud/releases/latest" id="secondaryDownloadBtn" class="btn btn-primary btn-large">
+                        <a href="https://github.com/jehadjoy15-stack/joyflix-cloud/releases/latest" id="secondaryDownloadBtn" class="btn btn-primary btn-large btn-glow">
                             <svg class="download-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                 <polyline points="7 10 12 15 17 10"></polyline>
@@ -401,8 +732,11 @@
                             </svg>
                             <span>Download JoyFlix APK (<span class="dyn-version">v4.8.5</span>)</span>
                         </a>
+                        <a href="https://discord.gg/PGJXcTQwp7" target="_blank" rel="noopener" class="btn btn-glass">
+                            <span>Join Discord</span>
+                        </a>
                     </div>
-                    <div class="banner-subtext">Direct download from GitHub Releases • Clean, virus-free, and SHA-verified</div>
+                    <div class="banner-subtext">Direct download from GitHub Releases • Clean, virus-free, and SHA-256 verified</div>
                 </div>
             </div>
         </section>
@@ -447,26 +781,44 @@
 
                 <div class="faq-item">
                     <button class="faq-question">
-                        <span>How do I receive updates?</span>
+                        <span>How does Simkl, AniList and MyAnimeList sync work?</span>
                         <span class="faq-icon">+</span>
                     </button>
                     <div class="faq-answer">
-                        <p>JoyFlix features an integrated In-App Updater connected to our official GitHub repository. Whenever a new version is released, the app will notify you with a changelog dialog and let you update in one tap.</p>
+                        <p>Go to JoyFlix Settings → Accounts and connect your Simkl, AniList, or MyAnimeList (MAL) account. When you bookmark titles as Watching, Completed, or Plan to Watch, JoyFlix automatically matches and syncs them directly to your remote accounts!</p>
                     </div>
                 </div>
 
                 <div class="faq-item">
                     <button class="faq-question">
-                        <span>Is the JoyFlix APK safe and virus-free?</span>
+                        <span>How can I join the community or ask for help?</span>
                         <span class="faq-icon">+</span>
                     </button>
                     <div class="faq-answer">
-                        <p>Yes. The JoyFlix APK is compiled with official developer signing keys and its source code is openly hosted on GitHub for anyone to audit.</p>
+                        <p>Join our official Discord community at <a href="https://discord.gg/PGJXcTQwp7" target="_blank" rel="noopener" style="color: #5865F2; text-decoration: underline;">discord.gg/PGJXcTQwp7</a> where you can get instant help, find watch party buddies, and suggest new features!</p>
                     </div>
                 </div>
             </div>
         </section>
     </main>
+
+    <!-- QR Code Modal (for desktop visitors) -->
+    <div class="modal-backdrop" id="qrModal">
+        <div class="modal-card">
+            <button class="modal-close" id="qrClose">&times;</button>
+            <h3 class="modal-title">Scan to Download on Phone / TV</h3>
+            <p class="modal-desc">Point your phone camera or TV QR scanner at this code to download <b>JoyFlix v4.8.5 APK</b> directly.</p>
+            <div class="qr-box">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=https://github.com/jehadjoy15-stack/joyflix-cloud/releases/download/v4.8.5/JoyFlix-v4.8.5.apk&color=E50914&bgcolor=0E1017" alt="Download QR Code" class="qr-image">
+            </div>
+            <div class="modal-footer-link">
+                <a href="https://github.com/jehadjoy15-stack/joyflix-cloud/releases/download/v4.8.5/JoyFlix-v4.8.5.apk" class="btn btn-primary" download>Direct Link</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast-notify" id="toastNotify">Copied to clipboard!</div>
 
     <!-- Footer -->
     <footer class="footer-wrapper">
@@ -477,8 +829,16 @@
                     <span class="brand-name">JOY<span class="highlight">FLIX</span></span>
                 </a>
                 <p class="footer-desc">
-                    The open-source streaming platform built for high-performance entertainment with friends.
+                    The open-source streaming platform built for high-performance entertainment with friends. Zero ads. Real-time watch parties.
                 </p>
+                <div class="footer-social-row">
+                    <a href="https://discord.gg/PGJXcTQwp7" target="_blank" rel="noopener" class="footer-social-btn" title="Discord Community">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.893.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+                    </a>
+                    <a href="https://github.com/jehadjoy15-stack/joyflix-cloud" target="_blank" rel="noopener" class="footer-social-btn" title="GitHub Repo">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                    </a>
+                </div>
             </div>
 
             <div class="footer-links-group">
@@ -486,22 +846,24 @@
                     <div class="col-title">Navigation</div>
                     <a href="#features">Features</a>
                     <a href="#watch-together">Watch Together</a>
-                    <a href="#install">Installation</a>
+                    <a href="#devices">Device Modes</a>
+                    <a href="#cloud-sync">Cloud Tracking</a>
                     <a href="#faq">FAQ</a>
                 </div>
 
                 <div class="footer-col">
-                    <div class="col-title">Releases</div>
-                    <a href="https://github.com/jehadjoy15-stack/joyflix-cloud/releases" target="_blank" rel="noopener">GitHub Releases</a>
+                    <div class="col-title">Community & Support</div>
+                    <a href="https://discord.gg/PGJXcTQwp7" target="_blank" rel="noopener">Discord Server</a>
+                    <a href="#support">Support / Donate</a>
+                    <a href="https://github.com/jehadjoy15-stack/joyflix-cloud/issues" target="_blank" rel="noopener">Report a Bug</a>
                     <a href="https://github.com/jehadjoy15-stack/joyflix-cloud" target="_blank" rel="noopener">Source Code</a>
-                    <a href="https://github.com/jehadjoy15-stack/joyflix-cloud/issues" target="_blank" rel="noopener">Report Issue</a>
                 </div>
             </div>
         </div>
 
         <div class="footer-bottom container">
-            <p>&copy; <span id="currentYear"></span> JoyFlix. Open source entertainment application.</p>
-            <p class="disclaimer">Disclaimer: JoyFlix does not host or store any media files on its servers. All content is scraped from third-party non-affiliated providers.</p>
+            <p>&copy; <span id="currentYear"></span> JoyFlix. Built for entertainment freedom.</p>
+            <p class="disclaimer">Disclaimer: JoyFlix does not host or store any media on its servers. All content is scraped from third-party non-affiliated providers.</p>
         </div>
     </footer>
 
