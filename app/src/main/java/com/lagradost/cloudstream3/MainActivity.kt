@@ -106,6 +106,7 @@ import com.lagradost.cloudstream3.syncproviders.SyncAPI
 import com.lagradost.cloudstream3.ui.APIRepository
 import com.lagradost.cloudstream3.ui.SyncWatchType
 import com.lagradost.cloudstream3.ui.WatchType
+import com.lagradost.cloudstream3.ui.toSyncWatchType
 import com.lagradost.cloudstream3.ui.account.AccountHelper.showAccountSelectLinear
 import com.lagradost.cloudstream3.ui.download.DOWNLOAD_NAVIGATE_TO
 import com.lagradost.cloudstream3.ui.home.HomeViewModel
@@ -1544,10 +1545,13 @@ class MainActivity : AppCompatActivity(), ColorPickerDialogListener, BiometricCa
                                     this@MainActivity.getString(R.string.action_add_to_bookmarks),
                                     showApply = false,
                                     {}) {
+                                    val selectedType = WatchType.entries[it]
                                     viewModel.updateWatchStatus(
-                                        WatchType.entries[it],
+                                        selectedType,
                                         this@MainActivity
                                     )
+                                    val title = (viewModel.page.value as? Resource.Success)?.value?.title
+                                    syncViewModel.setAndPublishStatus(selectedType.toSyncWatchType(), title)
                                 }
                             } else {
                                 val value =

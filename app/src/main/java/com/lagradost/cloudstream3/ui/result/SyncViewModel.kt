@@ -126,6 +126,83 @@ class SyncViewModel : ViewModel() {
         }
     }
 
+    private fun isRepoLoggedIn(prefix: String) = repos.firstOrNull { it.idPrefix == prefix }?.authUser() != null
+
+    private suspend fun searchAndAttach(prefix: String, title: String): Boolean {
+        if (!isRepoLoggedIn(prefix) || syncs.containsKey(prefix)) return false
+        val match = repos.firstOrNull { it.idPrefix == prefix }?.search(title)?.getOrNull()?.firstOrNull()
+        if (match != null) {
+            addSync(prefix, match.syncId)
+            return true
+        }
+        return false
+    }
+
+    fun addFromTitle(title: String?) = ioSafe {
+        if (title.isNullOrBlank()) return@ioSafe
+        Log.i(TAG, "addFromTitle = $title")
+        var anyAdded = false
+        if (searchAndAttach(simklApi.idPrefix, title)) anyAdded = true
+        if (searchAndAttach(malApi.idPrefix, title)) anyAdded = true
+        if (searchAndAttach(aniListApi.idPrefix, title)) anyAdded = true
+
+        if (anyAdded) {
+            updateSynced()
+            updateMetaAndUser()
+        }
+    }
+
+    fun setAndPublishStatus(statusType: SyncWatchType, title: String? = null) = ioSafe {
+        Log.i(TAG, "setAndPublishStatus = $statusType, title = $title")
+
+        if (!title.isNullOrBlank()) {
+            var anyAdded = false
+            if (searchAndAttach(simklApi.idPrefix, title)) anyAdded = true
+            if (searchAndAttach(malApi.idPrefix, title)) anyAdded = true
+            if (searchAndAttach(aniListApi.idPrefix, title)) anyAdded = true
+            if (anyAdded) {
+                updateSynced()
+            }
+        }
+
+        if (syncs.isEmpty()) {
+            Log.w(TAG, "setAndPublishStatus: no syncs available")
+            return@ioSafe
+        }
+
+        (userData.value as? Resource.Success)?.let {
+            it.value.status = statusType
+            _userDataResponse.postValue(Resource.Success(it.value))
+        }
+
+        _userDataResponse.postValue(Resource.Loading())
+
+        syncs.forEach { (prefix, id) ->
+            repos.firstOrNull { it.idPrefix == prefix }?.let { repo ->
+                try {
+                    val currentStatus = repo.status(id).getOrNull()
+                    val toSend: SyncAPI.AbstractSyncStatus = if (currentStatus != null) {
+                        currentStatus.status = statusType
+                        currentStatus
+                    } else {
+                        SyncAPI.SyncStatus(
+                            status = statusType,
+                            score = null,
+                            watchedEpisodes = null,
+                            isFavorite = null,
+                            maxEpisodes = null
+                        )
+                    }
+                    Log.i(TAG, "setAndPublishStatus updating ${repo.name} ($id) with $statusType")
+                    repo.updateStatus(id, toSend)
+                } catch (t: Throwable) {
+                    logError(t)
+                }
+            }
+        }
+        updateUserData()
+    }
+
     fun setEpisodesDelta(delta: Int) {
         Log.i(TAG, "setEpisodesDelta = $delta")
 

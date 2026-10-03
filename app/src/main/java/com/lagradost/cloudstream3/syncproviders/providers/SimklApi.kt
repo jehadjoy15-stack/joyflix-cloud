@@ -491,11 +491,12 @@ class SimklApi : SyncAPI() {
                     val time = getDateTime(APIHolder.unixTime)
                     val headers = this.headers ?: emptyMap()
                     return if (this.status == SimklListStatusType.None.value) {
+                        val histObj = HistoryMediaObject(ids = ids)
                         app.post(
                             "$url/sync/history/remove",
                             json = HistoryRequest(
-                                shows = listOf(HistoryMediaObject(ids = ids)),
-                                movies = emptyList(),
+                                shows = listOf(histObj),
+                                movies = listOf(histObj),
                             ),
                             headers = headers,
                         ).isSuccessful
@@ -504,35 +505,33 @@ class SimklApi : SyncAPI() {
                             val newStatus = SimklListStatusType.entries.firstOrNull {
                                 it.value == setStatus
                             }?.originalName ?: SimklListStatusType.Watching.originalName!!
+                            val statusObj = StatusMediaObject(
+                                null,
+                                null,
+                                ids,
+                                newStatus,
+                            )
                             app.post(
                                 "${this.url}/sync/add-to-list",
                                 json = StatusRequest(
-                                    shows = listOf(
-                                        StatusMediaObject(
-                                            null,
-                                            null,
-                                            ids,
-                                            newStatus,
-                                        ),
-                                    ),
-                                    movies = emptyList(),
+                                    shows = listOf(statusObj),
+                                    movies = listOf(statusObj),
                                 ),
                                 headers = headers,
                             ).isSuccessful
                         } ?: true
 
                         val episodeRemovalResponse = removeEpisodes?.let { (seasons, episodes) ->
+                            val histObj = HistoryMediaObject(
+                                ids = ids,
+                                seasons = seasons,
+                                episodes = episodes,
+                            )
                             app.post(
                                 "${this.url}/sync/history/remove",
                                 json = HistoryRequest(
-                                    shows = listOf(
-                                        HistoryMediaObject(
-                                            ids = ids,
-                                            seasons = seasons,
-                                            episodes = episodes,
-                                        ),
-                                    ),
-                                    movies = emptyList(),
+                                    shows = listOf(histObj),
+                                    movies = listOf(histObj),
                                 ),
                                 headers = headers,
                             ).isSuccessful
@@ -544,21 +543,20 @@ class SimklApi : SyncAPI() {
                         val historyResponse =
                             // Only post if there are episodes or score to upload
                             if (addEpisodes != null || shouldRate) {
+                                val histObj = HistoryMediaObject(
+                                    null,
+                                    null,
+                                    ids,
+                                    addEpisodes?.first,
+                                    addEpisodes?.second,
+                                    realScore,
+                                    realScore?.let { time },
+                                )
                                 app.post(
                                     "${this.url}/sync/history",
                                     json = HistoryRequest(
-                                        shows = listOf(
-                                            HistoryMediaObject(
-                                                null,
-                                                null,
-                                                ids,
-                                                addEpisodes?.first,
-                                                addEpisodes?.second,
-                                                realScore,
-                                                realScore?.let { time },
-                                            ),
-                                        ),
-                                        movies = emptyList(),
+                                        shows = listOf(histObj),
+                                        movies = listOf(histObj),
                                     ),
                                     headers = headers,
                                 ).isSuccessful
@@ -880,7 +878,10 @@ class SimklApi : SyncAPI() {
 
     override suspend fun status(auth: AuthData?, id: String): SyncAPI.AbstractSyncStatus? {
         if (auth == null) return null
-        val realIds = readIdFromString(id)
+        val realIds = readIdFromString(id).ifEmpty {
+            id.toIntOrNull()?.let { mapOf(SimklSyncServices.Simkl to it.toString()) }
+                ?: if (id.startsWith("tt")) mapOf(SimklSyncServices.Imdb to id) else emptyMap()
+        }
 
         // Key which assumes all ids are the same each time :/
         // This could be some sort of reference system to make multiple IDs
@@ -947,7 +948,10 @@ class SimklApi : SyncAPI() {
         newStatus: AbstractSyncStatus,
     ): Boolean {
         lastScoreTime = APIHolder.unixTime
-        val parsedId = readIdFromString(id)
+        val parsedId = readIdFromString(id).ifEmpty {
+            id.toIntOrNull()?.let { mapOf(SimklSyncServices.Simkl to it.toString()) }
+                ?: if (id.startsWith("tt")) mapOf(SimklSyncServices.Imdb to id) else emptyMap()
+        }
         val simklStatus = newStatus as? SimklSyncStatus
         val builder = SimklScoreBuilder.Builder()
             .apiUrl(this.mainUrl)

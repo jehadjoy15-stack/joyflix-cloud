@@ -56,6 +56,7 @@ import com.lagradost.cloudstream3.services.SubscriptionWorkManager
 import com.lagradost.cloudstream3.syncproviders.AccountManager.Companion.APP_STRING_SHARE
 import com.lagradost.cloudstream3.ui.BaseFragment
 import com.lagradost.cloudstream3.ui.WatchType
+import com.lagradost.cloudstream3.ui.toSyncWatchType
 import com.lagradost.cloudstream3.ui.download.DOWNLOAD_ACTION_DOWNLOAD
 import com.lagradost.cloudstream3.ui.download.DOWNLOAD_ACTION_LONG_CLICK
 import com.lagradost.cloudstream3.ui.download.DownloadButtonSetup
@@ -468,6 +469,7 @@ open class ResultFragmentPhone : BaseFragment<FragmentResultSwipeBinding>(
 
         setUrl(storedData.url)
         syncModel.addFromUrl(storedData.url)
+        syncModel.addFromTitle(storedData.name)
         val api = APIHolder.getApiFromNameNull(storedData.apiName)
 
         // This may not be 100% reliable, and may delay for small period
@@ -1012,6 +1014,7 @@ open class ResultFragmentPhone : BaseFragment<FragmentResultSwipeBinding>(
                     } else {
                         syncModel.addFromUrl(d.url)
                     }
+                    syncModel.addFromTitle(d.title)
 
                     binding.apply {
                         resultSearch.isGone = d.title.isBlank()
@@ -1283,7 +1286,11 @@ open class ResultFragmentPhone : BaseFragment<FragmentResultSwipeBinding>(
                         fab.context.getString(R.string.action_add_to_bookmarks),
                         showApply = false,
                         {}) {
-                        viewModel.updateWatchStatus(WatchType.entries[it], context)
+                        val selectedType = WatchType.entries[it]
+                        viewModel.updateWatchStatus(selectedType, context)
+                        val title = (viewModel.page.value as? Resource.Success)?.value?.title
+                            ?: getStoredData()?.name
+                        syncModel.setAndPublishStatus(selectedType.toSyncWatchType(), title)
                     }
                 }
             }

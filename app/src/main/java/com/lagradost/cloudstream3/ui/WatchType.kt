@@ -30,3 +30,12 @@ enum class SyncWatchType(val internalId: Int, @StringRes val stringRes: Int, @Dr
         fun fromInternalId(id: Int?) = entries.find { value -> value.internalId == id } ?: NONE
     }
 }
+
+fun WatchType.toSyncWatchType(): SyncWatchType = when (this) {
+    WatchType.WATCHING -> SyncWatchType.WATCHING
+    WatchType.COMPLETED -> SyncWatchType.COMPLETED
+    WatchType.ONHOLD -> SyncWatchType.ONHOLD
+    WatchType.DROPPED -> SyncWatchType.DROPPED
+    WatchType.PLANTOWATCH -> SyncWatchType.PLANTOWATCH
+    WatchType.NONE -> SyncWatchType.NONE
+}
