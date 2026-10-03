@@ -21,10 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 5. Device Experience Switcher (Phone vs TV)
     initDeviceSwitcher();
 
-    // 6. Donation Tabs Switcher
-    initDonationTabs();
-
-    // 7. QR Code Modal
+    // 6. QR Code Modal
     initQrModal();
 
     // 8. FAQ Accordion
@@ -285,27 +282,6 @@ function initDeviceSwitcher() {
     });
 }
 
-/**
- * Donation Tabs Switcher
- */
-function initDonationTabs() {
-    const tabs = document.querySelectorAll('.donation-tab');
-    const panelCrypto = document.getElementById('donCrypto');
-    const panelCoffee = document.getElementById('donCoffee');
-    const panelLocal = document.getElementById('donLocal');
-
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-
-            const target = tab.getAttribute('data-don-tab');
-            if (panelCrypto) panelCrypto.classList.toggle('active', target === 'crypto');
-            if (panelCoffee) panelCoffee.classList.toggle('active', target === 'coffee');
-            if (panelLocal) panelLocal.classList.toggle('active', target === 'local');
-        });
-    });
-}
 
 /**
  * Copy to Clipboard with Toast Notification

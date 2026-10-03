@@ -245,7 +245,13 @@ body {
 }
 
 .nav-highlight-item {
-    color: #FFB800 !important;
+    color: #5865F2 !important;
+    font-weight: 700;
+}
+
+.nav-highlight-item:hover {
+    color: #7983f5 !important;
+    text-shadow: 0 0 12px rgba(88, 101, 242, 0.6);
 }
 
 .nav-cta {
