@@ -388,18 +388,22 @@ function initMobileNav() {
     const navLinks = document.getElementById('navLinks');
 
     if (menuToggle && navLinks) {
-        menuToggle.addEventListener('click', () => {
-            const isOpen = navLinks.style.display === 'flex';
-            navLinks.style.display = isOpen ? 'none' : 'flex';
-            if (!isOpen) {
-                navLinks.style.flexDirection = 'column';
-                navLinks.style.position = 'absolute';
-                navLinks.style.top = '76px';
-                navLinks.style.left = '0';
-                navLinks.style.right = '0';
-                navLinks.style.background = 'rgba(7, 8, 12, 0.98)';
-                navLinks.style.padding = '2rem 1.5rem';
-                navLinks.style.borderBottom = '1px solid rgba(255, 255, 255, 0.1)';
+        menuToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            navLinks.classList.toggle('mobile-open');
+        });
+
+        // Close menu on click of any nav link
+        navLinks.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                navLinks.classList.remove('mobile-open');
+            });
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!navLinks.contains(e.target) && !menuToggle.contains(e.target)) {
+                navLinks.classList.remove('mobile-open');
             }
         });
     }
