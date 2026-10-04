@@ -145,6 +145,18 @@ class RepoLinkGenerator(
                     return@loadLinks
                 }
 
+                if (link.url.contains("surrit.com", ignoreCase = true) || link.url.contains("sixyik", ignoreCase = true)) {
+                    link.referer = "https://missav.ws/"
+                    link.headers = link.headers + mapOf(
+                        "Referer" to "https://missav.ws/",
+                        "Origin" to "https://missav.ws",
+                        "Sec-Fetch-Dest" to "empty",
+                        "Sec-Fetch-Mode" to "cors",
+                        "Sec-Fetch-Site" to "cross-site",
+                        "Accept" to "*/*"
+                    )
+                }
+
                 synchronized(currentCache) {
                     if (currentCache.linkCache.add(link)) {
                         if (sourceTypes.contains(link.type)) {

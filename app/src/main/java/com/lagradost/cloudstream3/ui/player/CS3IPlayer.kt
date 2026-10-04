@@ -795,17 +795,20 @@ class CS3IPlayer : IPlayer {
             engine: CronetEngine?,
             interceptor: Interceptor?,
         ): HttpDataSource.Factory {
+            val isSurrit = link.url.contains("surrit.com", ignoreCase = true) || link.url.contains("sixyik", ignoreCase = true)
+            val effectiveEngine = if (isSurrit) null else engine
+
             val userAgent = link.headers.entries.find {
                 it.key.equals("User-Agent", ignoreCase = true)
             }?.value ?: USER_AGENT
 
             val source = if (interceptor == null) {
-                if (engine == null) {
+                if (effectiveEngine == null) {
                     Log.d(TAG, "Using DefaultHttpDataSource for $link")
                     OkHttpDataSource.Factory(app.baseClient).setUserAgent(userAgent)
                 } else {
                     Log.d(TAG, "Using CronetDataSource for $link")
-                    CronetDataSource.Factory(engine, Executors.newSingleThreadExecutor())
+                    CronetDataSource.Factory(effectiveEngine, Executors.newSingleThreadExecutor())
                         .setUserAgent(userAgent)
                         .setConnectionTimeoutMs(CRONET_TIMEOUT_MS)
                         .setReadTimeoutMs(CRONET_TIMEOUT_MS)
@@ -826,7 +829,18 @@ class CS3IPlayer : IPlayer {
 
             // These are extra headers the browser like to insert, not sure if we want to include them
             // for WIDEVINE/drm as well? Do that if someone gets 404 and creates an issue.
-            val headers = refererMap + link.headers // Adds the headers from the provider, e.g Authorization
+            var headers = refererMap + link.headers // Adds the headers from the provider, e.g Authorization
+
+            if (isSurrit) {
+                headers = headers + mapOf(
+                    "Referer" to "https://missav.ws/",
+                    "Origin" to "https://missav.ws",
+                    "Sec-Fetch-Dest" to "empty",
+                    "Sec-Fetch-Mode" to "cors",
+                    "Sec-Fetch-Site" to "cross-site",
+                    "Accept" to "*/*"
+                )
+            }
 
             return source.apply {
                 setDefaultRequestProperties(headers)

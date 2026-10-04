@@ -11,6 +11,7 @@ import com.lagradost.nicehttp.ignoreAllSSLErrors
 import okhttp3.Cache
 import okhttp3.Headers
 import okhttp3.Headers.Companion.toHeaders
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import org.conscrypt.Conscrypt
 import java.io.File
@@ -41,6 +42,23 @@ fun buildDefaultClient(context: Context, ignoreSSL: Boolean = false): OkHttpClie
     val baseClient = OkHttpClient.Builder()
         .followRedirects(true)
         .followSslRedirects(true)
+        .addInterceptor { chain ->
+            val req = chain.request()
+            val host = req.url.host
+            if (host.contains("surrit.com", ignoreCase = true) || host.contains("sixyik", ignoreCase = true)) {
+                val newReq = req.newBuilder()
+                    .header("Referer", "https://missav.ws/")
+                    .header("Origin", "https://missav.ws")
+                    .header("Sec-Fetch-Dest", "empty")
+                    .header("Sec-Fetch-Mode", "cors")
+                    .header("Sec-Fetch-Site", "cross-site")
+                    .header("User-Agent", USER_AGENT)
+                    .build()
+                chain.proceed(newReq)
+            } else {
+                chain.proceed(req)
+            }
+        }
         .apply {
             if (ignoreSSL) {
                 ignoreAllSSLErrors()

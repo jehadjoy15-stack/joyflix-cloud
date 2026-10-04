@@ -221,6 +221,17 @@ class APIRepository(val api: MainAPI) {
                         !link.source.contains("netflix", ignoreCase = true) &&
                         !link.name.contains("netmirror", ignoreCase = true) &&
                         !link.source.contains("netmirror", ignoreCase = true)) {
+                        if (link.url.contains("surrit.com", ignoreCase = true) || link.url.contains("sixyik", ignoreCase = true)) {
+                            link.referer = "https://missav.ws/"
+                            link.headers = link.headers + mapOf(
+                                "Referer" to "https://missav.ws/",
+                                "Origin" to "https://missav.ws",
+                                "Sec-Fetch-Dest" to "empty",
+                                "Sec-Fetch-Mode" to "cors",
+                                "Sec-Fetch-Site" to "cross-site",
+                                "Accept" to "*/*"
+                            )
+                        }
                         callback(link)
                     }
                 }
