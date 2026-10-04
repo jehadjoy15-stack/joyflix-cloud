@@ -294,6 +294,8 @@ dependencies {
     implementation("com.google.code.gson:gson:2.11.0")
     // Deprecated; will be removed once extensions have time to migrate from using it
     implementation("me.xdrop:fuzzywuzzy:1.4.0")
+    // Required by extensions using SQLDelight / Requery SQLite database
+    implementation("com.github.requery:sqlite-android:3.45.0")
 
     // Torrent Support
     implementation(libs.torrentserver)

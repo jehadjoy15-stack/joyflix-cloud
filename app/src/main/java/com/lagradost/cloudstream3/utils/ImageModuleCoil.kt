@@ -30,6 +30,7 @@ import coil3.util.DebugLogger
 import com.lagradost.cloudstream3.BuildConfig
 import com.lagradost.cloudstream3.USER_AGENT
 import com.lagradost.cloudstream3.network.buildDefaultClient
+import com.lagradost.cloudstream3.utils.AppContextUtils.isLowRamDevice
 import okio.Path.Companion.toOkioPath
 import java.io.File
 import java.nio.ByteBuffer
@@ -38,20 +39,22 @@ object ImageLoader {
     private const val TAG = "CoilImgLoader"
     internal fun buildImageLoader(context: PlatformContext): ImageLoader {
         val isBrokenHardware = hasPotentialBrokenHardware()
+        val isLowRam = context.isLowRamDevice()
         return ImageLoader.Builder(context)
-            .crossfade(200)
+            .crossfade(if (isLowRam) 0 else 200)
             .allowHardware(SDK_INT >= 28 && !isBrokenHardware)
             .diskCachePolicy(CachePolicy.ENABLED)
             .networkCachePolicy(CachePolicy.ENABLED)
             .memoryCache {
-                MemoryCache.Builder().maxSizePercent(context, 0.1)//10 % of heap for mem-cache
+                // 8% heap on <= 4GB RAM devices to prevent OOM while keeping app ultra responsive
+                MemoryCache.Builder().maxSizePercent(context, if (isLowRam) 0.08 else 0.15)
                     .strongReferencesEnabled(false)
                     .build()
             }
             .diskCache {
                 DiskCache.Builder()
                     .directory(context.cacheDir.resolve("cs3_image_cache").toOkioPath())
-                    .maxSizeBytes(512L * 1024 * 1024) // 512 MB
+                    .maxSizeBytes(if (isLowRam) 256L * 1024 * 1024 else 512L * 1024 * 1024)
                     .maxSizePercent(0.04) // max 4% of storage for disk caching
                     .build()
             }
@@ -59,12 +62,15 @@ object ImageLoader {
             or image hosting services causes unauthorized exceptions **/
             .components {
                 add(OkHttpNetworkFetcherFactory(callFactory = { buildDefaultClient(context) }))
-                if (isBrokenHardware) {
+                if (isBrokenHardware || isLowRam) {
                     add(BitmapFactoryDecoder.Factory())
                 } // sw decoder
             }
             .apply {
-                if (isBrokenHardware) { // coil will auto choose optimal config on modern device
+                if (isLowRam) {
+                    // RGB_565 halves memory consumption (2 bytes/pixel vs 4 bytes/pixel)
+                    bitmapConfig(Bitmap.Config.RGB_565)
+                } else if (isBrokenHardware) { // coil will auto choose optimal config on modern device
                     bitmapConfig(Bitmap.Config.ARGB_8888)
                 }
                 setupCoilLogger()
@@ -105,6 +111,10 @@ object ImageLoader {
         }
         // headers can be overridden by extensions.
         this.load(imageData, SingletonImageLoader.get(context)) {
+            if (context.isLowRamDevice()) {
+                bitmapConfig(Bitmap.Config.RGB_565)
+                crossfade(false)
+            }
             this.httpHeaders(NetworkHeaders.Builder().also { headerBuilder ->
                 headerBuilder["User-Agent"] = USER_AGENT
                 headers?.forEach { (key, value) ->

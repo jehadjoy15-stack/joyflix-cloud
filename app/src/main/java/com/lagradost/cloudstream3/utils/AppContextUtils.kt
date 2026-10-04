@@ -4,6 +4,7 @@ import android.animation.ObjectAnimator
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.Activity.RESULT_CANCELED
+import android.app.ActivityManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
@@ -900,5 +901,35 @@ object AppContextUtils {
             }
         } else null
         return currentAudioFocusRequest
+    }
+
+    private var isLowRamCached: Boolean? = null
+
+    /**
+     * Detects if the current device has <= 4 GB RAM (covers 1GB, 2GB, 3GB, and 4GB RAM devices),
+     * enabling ultra-lightweight optimizations (RGB_565 posters, tuned ExoPlayer buffers, reduced memory cache)
+     * so that the app runs silky smooth without lag or frame drops.
+     */
+    fun Context?.isLowRamDevice(): Boolean {
+        isLowRamCached?.let { return it }
+        if (this == null) return false
+        return try {
+            val am = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+            val isLow = if (am?.isLowRamDevice == true) {
+                true
+            } else {
+                val memInfo = ActivityManager.MemoryInfo()
+                am?.getMemoryInfo(memInfo)
+                // 4.5 GB in bytes covers 1GB, 2GB, 3GB, and 4GB RAM devices (accounting for system reserved RAM)
+                val fourGbThreshold = (4.5 * 1024 * 1024 * 1024).toLong()
+                memInfo.totalMem in 1..fourGbThreshold
+            }
+            isLowRamCached = isLow
+            isLow
+        } catch (_: Throwable) {
+            val fallback = Runtime.getRuntime().maxMemory() <= 512 * 1024 * 1024
+            isLowRamCached = fallback
+            fallback
+        }
     }
 }

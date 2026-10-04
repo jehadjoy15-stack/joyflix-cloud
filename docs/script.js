@@ -114,7 +114,7 @@ async function fetchLatestGitHubRelease() {
         }
 
         if (release) {
-            const rawTag = release.tag_name || 'v4.8.7';
+            const rawTag = release.tag_name || 'v4.8.8';
             const cleanVersion = rawTag.replace(/^v/i, '');
             const displayTag = rawTag.startsWith('v') ? rawTag : `v${rawTag}`;
 
@@ -148,7 +148,7 @@ async function fetchLatestGitHubRelease() {
             });
         }
     } catch (e) {
-        console.warn('Using default v4.8.7 release info:', e);
+        console.warn('Using default v4.8.8 release info:', e);
     }
 }
 

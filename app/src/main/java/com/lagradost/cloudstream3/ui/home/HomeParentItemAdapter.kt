@@ -98,6 +98,8 @@ open class ParentItemAdapter(
         binding.apply {
             val currentAdapter = homeChildRecyclerview.adapter as? HomeChildItemAdapter
             if (currentAdapter == null) {
+                homeChildRecyclerview.setHasFixedSize(true)
+                homeChildRecyclerview.setItemViewCacheSize(4)
                 homeChildRecyclerview.setRecycledViewPool(HomeChildItemAdapter.sharedPool)
                 homeChildRecyclerview.adapter = HomeChildItemAdapter(
                     id = id + position + 100,

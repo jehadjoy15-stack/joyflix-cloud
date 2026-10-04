@@ -6,10 +6,13 @@ import android.content.pm.PackageManager
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Base64
 import androidx.core.content.ContextCompat
 import com.lagradost.cloudstream3.mvvm.logError
 import java.io.File
+import java.util.ArrayDeque
 
 class WatchTogetherVoiceHelper(private val context: Context) {
     private var mediaRecorder: MediaRecorder? = null
@@ -17,6 +20,19 @@ class WatchTogetherVoiceHelper(private val context: Context) {
     private var recordStartTime: Long = 0L
     private var activeMediaPlayer: MediaPlayer? = null
     private var currentPlayingFile: File? = null
+
+    // Continuous Live Mic (ON / OFF Toggle)
+    var isLiveMicOn: Boolean = false
+        private set
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var liveChunkRunnable: Runnable? = null
+    private var onLiveChunkReady: ((base64Audio: String, durationMs: Long) -> Unit)? = null
+
+    // Playback Queue to prevent overlapping voice messages
+    private val playbackQueue = ArrayDeque<String>()
+    private var isPlayingQueue: Boolean = false
+    private var queueStartCallback: (() -> Unit)? = null
+    private var queueAllCompleteCallback: (() -> Unit)? = null
 
     val isRecording: Boolean
         get() = mediaRecorder != null
@@ -26,6 +42,57 @@ class WatchTogetherVoiceHelper(private val context: Context) {
             context,
             Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    @Synchronized
+    fun startLiveMic(onChunkReady: (base64Audio: String, durationMs: Long) -> Unit): Boolean {
+        if (!hasMicPermission()) return false
+        stopLiveMic()
+
+        isLiveMicOn = true
+        onLiveChunkReady = onChunkReady
+
+        val started = startRecording()
+        if (!started) {
+            isLiveMicOn = false
+            return false
+        }
+
+        scheduleNextChunk()
+        return true
+    }
+
+    private fun scheduleNextChunk() {
+        val runnable = Runnable {
+            if (!isLiveMicOn) return@Runnable
+
+            val result = stopRecording(cancel = false)
+            if (result != null) {
+                val (base64, duration) = result
+                onLiveChunkReady?.invoke(base64, duration)
+            }
+
+            if (isLiveMicOn) {
+                startRecording()
+                scheduleNextChunk()
+            }
+        }
+        liveChunkRunnable = runnable
+        mainHandler.postDelayed(runnable, 3500L) // 3.5-second live audio packets
+    }
+
+    @Synchronized
+    fun stopLiveMic() {
+        isLiveMicOn = false
+        liveChunkRunnable?.let { mainHandler.removeCallbacks(it) }
+        liveChunkRunnable = null
+
+        val result = stopRecording(cancel = false)
+        if (result != null) {
+            val (base64, duration) = result
+            onLiveChunkReady?.invoke(base64, duration)
+        }
+        onLiveChunkReady = null
     }
 
     @Synchronized
@@ -84,7 +151,7 @@ class WatchTogetherVoiceHelper(private val context: Context) {
             }
         }
 
-        if (cancel || duration < 500L || file == null || !file.exists() || file.length() < 100) {
+        if (cancel || duration < 400L || file == null || !file.exists() || file.length() < 100) {
             file?.delete()
             return null
         }
@@ -102,14 +169,34 @@ class WatchTogetherVoiceHelper(private val context: Context) {
     }
 
     @Synchronized
-    fun playVoice(
+    fun enqueueVoice(
         base64Audio: String,
         onStart: () -> Unit,
-        onComplete: () -> Unit
+        onAllComplete: () -> Unit
     ) {
-        stopPlayback()
+        queueStartCallback = onStart
+        queueAllCompleteCallback = onAllComplete
+        playbackQueue.add(base64Audio)
+        if (!isPlayingQueue) {
+            playNextInQueue()
+        }
+    }
+
+    private fun playNextInQueue() {
+        val nextAudio = synchronized(this) {
+            if (playbackQueue.isEmpty()) {
+                isPlayingQueue = false
+                currentPlayingFile?.delete()
+                currentPlayingFile = null
+                queueAllCompleteCallback?.invoke()
+                return
+            }
+            isPlayingQueue = true
+            playbackQueue.poll()
+        } ?: return
+
         try {
-            val bytes = Base64.decode(base64Audio, Base64.NO_WRAP)
+            val bytes = Base64.decode(nextAudio, Base64.NO_WRAP)
             val tempFile = File(context.cacheDir, "wt_play_${System.currentTimeMillis()}.m4a")
             tempFile.writeBytes(bytes)
             currentPlayingFile = tempFile
@@ -117,26 +204,26 @@ class WatchTogetherVoiceHelper(private val context: Context) {
             val mp = MediaPlayer()
             mp.setDataSource(tempFile.absolutePath)
             mp.setOnCompletionListener {
-                onComplete()
-                stopPlayback()
+                stopSinglePlayback()
+                playNextInQueue()
             }
             mp.setOnErrorListener { _, _, _ ->
-                onComplete()
-                stopPlayback()
+                stopSinglePlayback()
+                playNextInQueue()
                 true
             }
             mp.prepare()
             mp.start()
             activeMediaPlayer = mp
-            onStart()
+            queueStartCallback?.invoke()
         } catch (e: Throwable) {
             logError(e)
-            onComplete()
+            stopSinglePlayback()
+            playNextInQueue()
         }
     }
 
-    @Synchronized
-    fun stopPlayback() {
+    private fun stopSinglePlayback() {
         try {
             activeMediaPlayer?.stop()
         } catch (_: Throwable) {
@@ -146,18 +233,20 @@ class WatchTogetherVoiceHelper(private val context: Context) {
         } catch (_: Throwable) {
         }
         activeMediaPlayer = null
-
-        currentPlayingFile?.let {
-            try {
-                it.delete()
-            } catch (_: Throwable) {
-            }
-        }
+        currentPlayingFile?.delete()
         currentPlayingFile = null
     }
 
+    @Synchronized
+    fun stopPlayback() {
+        playbackQueue.clear()
+        isPlayingQueue = false
+        stopSinglePlayback()
+        queueAllCompleteCallback?.invoke()
+    }
+
     fun release() {
-        stopRecording(cancel = true)
+        stopLiveMic()
         stopPlayback()
     }
 }

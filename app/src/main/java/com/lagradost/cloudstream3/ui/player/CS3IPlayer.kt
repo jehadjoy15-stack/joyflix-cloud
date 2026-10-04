@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.DialogInterface
 import android.graphics.Bitmap
 import android.net.Uri
+import com.lagradost.cloudstream3.utils.AppContextUtils.isLowRamDevice
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -1249,28 +1250,32 @@ class CS3IPlayer : IPlayer {
                 // Allows any seeking to be +- 0.3s to allow for faster seeking
                 .setSeekParameters(SeekParameters(toleranceBeforeUs, toleranceAfterUs))
                 .setLoadControl(
-                    DefaultLoadControl.Builder()
-                        .setTargetBufferBytes(
-                            if (cacheSize <= 0) {
-                                DefaultLoadControl.DEFAULT_TARGET_BUFFER_BYTES
-                            } else {
-                                if (cacheSize > Int.MAX_VALUE) Int.MAX_VALUE else cacheSize.toInt()
-                            }
-                        )
-                        .setBackBuffer(
-                            30000,
-                            true
-                        )
-                        .setBufferDurationsMs(
-                            DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
-                            if (videoBufferMs <= 0) {
-                                DefaultLoadControl.DEFAULT_MAX_BUFFER_MS
-                            } else {
-                                videoBufferMs.toInt()
-                            },
-                            DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
-                            DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
-                        ).build()
+                    run {
+                        val isLowRam = context.isLowRamDevice()
+                        DefaultLoadControl.Builder()
+                            .setTargetBufferBytes(
+                                if (cacheSize <= 0) {
+                                    if (isLowRam) 24 * 1024 * 1024
+                                    else DefaultLoadControl.DEFAULT_TARGET_BUFFER_BYTES
+                                } else {
+                                    if (cacheSize > Int.MAX_VALUE) Int.MAX_VALUE else cacheSize.toInt()
+                                }
+                            )
+                            .setBackBuffer(
+                                if (isLowRam) 0 else 30000,
+                                !isLowRam
+                            )
+                            .setBufferDurationsMs(
+                                if (isLowRam) 12000 else DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
+                                if (videoBufferMs <= 0) {
+                                    if (isLowRam) 30000 else DefaultLoadControl.DEFAULT_MAX_BUFFER_MS
+                                } else {
+                                    videoBufferMs.toInt()
+                                },
+                                if (isLowRam) 1500 else DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
+                                if (isLowRam) 2500 else DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
+                            ).build()
+                    }
                 )
 
         // Because "Java rules" the media3 team hates to do open classes so we have to copy paste the entire thing to add a custom extractor

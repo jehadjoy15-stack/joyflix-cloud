@@ -699,6 +699,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
             homeMasterAdapter = HomeParentItemAdapterPreview(
                 homeViewModel, accountViewModel
             )
+            homeMasterRecycler.setHasFixedSize(true)
             homeMasterRecycler.adapter = homeMasterAdapter
             homeMasterRecycler.setRecycledViewPool(ParentItemAdapter.sharedPool)
             homeApiFab.isGone = true

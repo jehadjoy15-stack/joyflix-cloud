@@ -19,3 +19,7 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Requery SQLite (used by extensions with SQLDelight)
+-keep class io.requery.android.database.sqlite.** { *; }
+-dontwarn io.requery.android.database.sqlite.**

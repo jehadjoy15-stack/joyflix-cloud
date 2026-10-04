@@ -17,6 +17,7 @@ import com.lagradost.cloudstream3.BuildConfig
 import com.lagradost.cloudstream3.mvvm.safe
 import com.lagradost.cloudstream3.mvvm.safeAsync
 import com.lagradost.cloudstream3.plugins.PluginManager
+import com.lagradost.cloudstream3.ui.clear
 import com.lagradost.cloudstream3.ui.settings.Globals.EMULATOR
 import com.lagradost.cloudstream3.ui.settings.Globals.TV
 import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
@@ -101,6 +102,45 @@ class CloudStreamApp : Application(), SingletonImageLoader.Factory {
     override fun newImageLoader(context: PlatformContext): ImageLoader {
         // Coil module will be initialized globally when first loadImage() is invoked.
         return buildImageLoader(applicationContext)
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        try {
+            val imageLoader = SingletonImageLoader.get(this)
+            when (level) {
+                TRIM_MEMORY_RUNNING_CRITICAL,
+                TRIM_MEMORY_COMPLETE -> {
+                    imageLoader.memoryCache?.clear()
+                    com.lagradost.cloudstream3.ui.home.ParentItemAdapter.sharedPool.clear()
+                    com.lagradost.cloudstream3.ui.home.HomeChildItemAdapter.sharedPool.clear()
+                    com.lagradost.cloudstream3.ui.search.SearchAdapter.sharedPool.clear()
+                    System.gc()
+                }
+                TRIM_MEMORY_RUNNING_LOW,
+                TRIM_MEMORY_RUNNING_MODERATE,
+                TRIM_MEMORY_MODERATE,
+                TRIM_MEMORY_UI_HIDDEN -> {
+                    val max = imageLoader.memoryCache?.maxSize ?: 0
+                    if (max > 0) {
+                        imageLoader.memoryCache?.trimToSize(max / 2)
+                    }
+                }
+            }
+        } catch (_: Throwable) {
+        }
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        try {
+            SingletonImageLoader.get(this).memoryCache?.clear()
+            com.lagradost.cloudstream3.ui.home.ParentItemAdapter.sharedPool.clear()
+            com.lagradost.cloudstream3.ui.home.HomeChildItemAdapter.sharedPool.clear()
+            com.lagradost.cloudstream3.ui.search.SearchAdapter.sharedPool.clear()
+            System.gc()
+        } catch (_: Throwable) {
+        }
     }
 
     companion object {

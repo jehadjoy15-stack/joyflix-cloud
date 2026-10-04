@@ -823,9 +823,15 @@
     <string name="guest_joined_notify">%s has joined the room!</string>
     <string name="chat">Chat</string>
     <string name="type_a_message">Type a message...</string>
-    <string name="voice_hold_to_talk">Hold to talk, release to send</string>
+    <string name="voice_hold_to_talk">Tap to turn Mic ON / OFF</string>
     <string name="voice_recording">Recording voice...</string>
     <string name="voice_too_short">Hold longer to send voice</string>
     <string name="voice_speaking">speaking...</string>
     <string name="voice_permission_needed">Microphone permission needed for Voice Call</string>
+    <string name="voice_call">Voice</string>
+    <string name="voice_join_room_first">Join or create a Watch Party room first to talk!</string>
+    <string name="mic_on">Mic ON</string>
+    <string name="mic_off">Mic OFF</string>
+    <string name="mic_turned_on">Mic is ON — Friends can hear you</string>
+    <string name="mic_turned_off">Mic is Muted (OFF)</string>
 </resources>
