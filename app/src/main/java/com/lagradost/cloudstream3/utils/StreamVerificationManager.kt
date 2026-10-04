@@ -72,11 +72,10 @@ object StreamVerificationManager {
 
     /**
      * Checks whether a URL is already known to be playable.
-     * Returns true if verified playable, false if known dead, or null if unverified.
+     * Returns true if verified playable, or null if unverified.
      */
     fun isPlayableCached(url: String?): Boolean? {
         val norm = normalize(url) ?: return false
-        if (DeadLinkManager.isDead(norm)) return false
         ensureInitialized()
         val ts = verifiedPlayableCache[norm] ?: return null
         if (System.currentTimeMillis() - ts > PLAYABLE_CACHE_TTL_MS) {
@@ -107,24 +106,18 @@ object StreamVerificationManager {
         val cached = isPlayableCached(url)
         if (cached != null) return cached
 
-        val api = APIHolder.getApiFromNameNull(response.apiName)
-        if (api == null) {
-            DeadLinkManager.markDead(url, "Provider not found: ${response.apiName}")
-            return false
-        }
+        val api = APIHolder.getApiFromNameNull(response.apiName) ?: return false
 
         return try {
             withTimeoutOrNull(2500L) {
                 val repo = APIRepository(api)
                 val loadRes = repo.load(url)
                 if (loadRes !is Resource.Success) {
-                    DeadLinkManager.markDead(url, "Load metadata failed")
                     return@withTimeoutOrNull false
                 }
 
                 val data = loadRes.value
                 if (data.comingSoon) {
-                    DeadLinkManager.markDead(url, "Coming soon - no stream released")
                     return@withTimeoutOrNull false
                 }
 
@@ -135,7 +128,6 @@ object StreamVerificationManager {
                             markPlayable(url)
                             true
                         } else {
-                            DeadLinkManager.markDead(url, "No magnet or torrent link")
                             false
                         }
                     }
@@ -144,13 +136,11 @@ object StreamVerificationManager {
                             markPlayable(url)
                             true
                         } else {
-                            DeadLinkManager.markDead(url, "No live stream url")
                             false
                         }
                     }
                     is MovieLoadResponse -> {
                         if (data.dataUrl.isBlank()) {
-                            DeadLinkManager.markDead(url, "Empty movie dataUrl")
                             false
                         } else {
                             testStreamLink(repo, data.dataUrl, url)
@@ -159,7 +149,6 @@ object StreamVerificationManager {
                     is AnimeLoadResponse -> {
                         val episode = data.episodes.values.firstOrNull { it.isNotEmpty() }?.firstOrNull()
                         if (episode == null || episode.data.isBlank()) {
-                            DeadLinkManager.markDead(url, "No anime episodes")
                             false
                         } else {
                             testStreamLink(repo, episode.data, url)
@@ -168,7 +157,6 @@ object StreamVerificationManager {
                     is TvSeriesLoadResponse -> {
                         val episode = data.episodes.firstOrNull()
                         if (episode == null || episode.data.isBlank()) {
-                            DeadLinkManager.markDead(url, "No series episodes")
                             false
                         } else {
                             testStreamLink(repo, episode.data, url)
@@ -194,7 +182,7 @@ object StreamVerificationManager {
         try {
             withTimeout(1800L) {
                 repo.loadLinks(streamData, isCasting = false, subtitleCallback = {}) { link ->
-                    if (link.url.isNotBlank() && !DeadLinkManager.isDead(link.url)) {
+                    if (link.url.isNotBlank()) {
                         hasValidLink = true
                         throw PlayableFoundSignal()
                     }
@@ -210,7 +198,6 @@ object StreamVerificationManager {
             markPlayable(itemUrl)
             true
         } else {
-            DeadLinkManager.markDead(itemUrl, "No working stream links found")
             false
         }
     }
@@ -231,7 +218,6 @@ object StreamVerificationManager {
         // Step 1: Immediate cache partitioning (0ms)
         for (item in items) {
             val url = normalize(item.url) ?: continue
-            if (DeadLinkManager.isDead(url)) continue
 
             val cached = isPlayableCached(url)
             if (cached == true) {

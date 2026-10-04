@@ -45,23 +45,18 @@ object DeadLinkManager {
 
     /**
      * Checks if the given URL is recorded in the dead links list.
+     * Always returns false to avoid locking links, since background verification auto-runs dynamically.
      */
     fun isDead(url: String?): Boolean {
-        val norm = normalize(url) ?: return false
-        ensureInitialized()
-        return deadLinks.contains(norm)
+        return false
     }
 
     /**
-     * Marks a URL as dead so it won't be displayed or played again.
+     * Marks a URL as dead.
+     * Permanent locking is disabled so items can be re-verified dynamically.
      */
     fun markDead(url: String?, reason: String? = null) {
-        val norm = normalize(url) ?: return
-        ensureInitialized()
-        if (deadLinks.add(norm)) {
-            Log.w(TAG, "Marked link as dead ($reason): $norm")
-            saveAsync()
-        }
+        // No-op: do not permanently lock links
     }
 
     /**
