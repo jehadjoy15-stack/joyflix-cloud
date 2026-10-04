@@ -2052,4 +2052,11 @@ class CS3IPlayer : IPlayer {
         }
     }
 
+    override fun setVolume(volume: Float) {
+        exoPlayer?.volume = volume.coerceIn(0.0f, 1.0f)
+    }
+
+    override fun getVolume(): Float {
+        return exoPlayer?.volume ?: 1.0f
+    }
 }

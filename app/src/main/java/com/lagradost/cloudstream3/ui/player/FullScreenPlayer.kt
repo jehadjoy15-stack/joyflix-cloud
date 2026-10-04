@@ -1,5 +1,6 @@
 package com.lagradost.cloudstream3.ui.player
 
+import android.Manifest
 import android.animation.ObjectAnimator
 import android.annotation.SuppressLint
 import android.app.Activity
@@ -7,6 +8,8 @@ import android.app.Dialog
 import android.content.Context
 import android.content.DialogInterface
 import android.content.pm.ActivityInfo
+import androidx.core.app.ActivityCompat
+import com.lagradost.cloudstream3.utils.WatchTogetherVoiceHelper
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
@@ -173,6 +176,8 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             }
         }
 
+    private var voiceHelper: WatchTogetherVoiceHelper? = null
+
     /** Checks if any top level dialog is open and showing */
     fun isDialogOpen() =
         selectSourceDialog?.isShowing == true
@@ -239,6 +244,11 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
     override fun onDestroyView() {
         hideChatToastRunnable?.let { playerBinding?.playerChatToastContainer?.removeCallbacks(it) }
         hideChatToastRunnable = null
+        hideVoiceToastRunnable?.let { playerBinding?.playerVoiceToastContainer?.removeCallbacks(it) }
+        hideVoiceToastRunnable = null
+        voiceHelper?.release()
+        voiceHelper = null
+        WatchTogetherManager.setOnNewVoiceListener(null)
         WatchTogetherManager.setOnNewMessageListener(null)
         WatchTogetherManager.setOnRemoteSyncListener(null)
         WatchTogetherManager.setOnRoomClosedListener(null)
@@ -786,9 +796,70 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         WatchTogetherManager.setOnNewMessageListener { msg ->
             showChatMessageToast(msg.senderName, msg.text)
         }
+
+        val ctx = context ?: activity
+        if (ctx != null && voiceHelper == null) {
+            voiceHelper = WatchTogetherVoiceHelper(ctx.applicationContext)
+        }
+
+        WatchTogetherManager.setOnNewVoiceListener { voice ->
+            activity?.runOnUiThread {
+                if (!isAdded || isDetached) return@runOnUiThread
+                val currentVol = player.getVolume()
+                showVoiceSpeakingToast(voice.senderName)
+                player.setVolume(0.15f)
+                voiceHelper?.playVoice(
+                    base64Audio = voice.audioBase64,
+                    onStart = {},
+                    onComplete = {
+                        activity?.runOnUiThread {
+                            if (!isAdded || isDetached) return@runOnUiThread
+                            player.setVolume(currentVol)
+                            hideVoiceSpeakingToast()
+                        }
+                    }
+                )
+            }
+        }
     }
 
     private var hideChatToastRunnable: Runnable? = null
+    private var hideVoiceToastRunnable: Runnable? = null
+
+    private fun showVoiceSpeakingToast(senderName: String) {
+        val b = playerBinding ?: return
+        activity?.runOnUiThread {
+            if (!isAdded || isDetached) return@runOnUiThread
+            hideVoiceToastRunnable?.let { b.playerVoiceToastContainer.removeCallbacks(it) }
+
+            b.playerVoiceSpeakerName.text = "$senderName: "
+            b.playerVoiceStatusText.setText(R.string.voice_speaking)
+            b.playerVoiceToastContainer.alpha = 0f
+            b.playerVoiceToastContainer.isVisible = true
+            b.playerVoiceToastContainer.animate()
+                .alpha(1f)
+                .setDuration(200)
+                .start()
+        }
+    }
+
+    private fun hideVoiceSpeakingToast() {
+        val b = playerBinding ?: return
+        activity?.runOnUiThread {
+            if (!isAdded || isDetached) return@runOnUiThread
+            val runnable = Runnable {
+                b.playerVoiceToastContainer.animate()
+                    .alpha(0f)
+                    .setDuration(300)
+                    .withEndAction {
+                        b.playerVoiceToastContainer.isVisible = false
+                    }
+                    .start()
+            }
+            hideVoiceToastRunnable = runnable
+            b.playerVoiceToastContainer.post(runnable)
+        }
+    }
 
     private fun showChatMessageToast(senderName: String, text: String) {
         val b = playerBinding ?: return
@@ -1738,6 +1809,89 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
             btnPlayerChatSend.setOnClickListener {
                 sendCurrentChatMessage()
+            }
+
+            @SuppressLint("ClickableViewAccessibility")
+            btnPlayerChatMic.setOnTouchListener { _, motionEvent ->
+                val vh = voiceHelper ?: return@setOnTouchListener false
+                when (motionEvent.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        val act = activity ?: return@setOnTouchListener false
+                        if (!vh.hasMicPermission()) {
+                            ActivityCompat.requestPermissions(
+                                act,
+                                arrayOf(Manifest.permission.RECORD_AUDIO),
+                                1337
+                            )
+                            showToast(R.string.voice_permission_needed)
+                            return@setOnTouchListener false
+                        }
+                        val started = vh.startRecording()
+                        if (started) {
+                            btnPlayerChatMic.setColorFilter(Color.parseColor("#FF3344"))
+                            showToast(R.string.voice_recording)
+                        }
+                        true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        btnPlayerChatMic.clearColorFilter()
+                        val result = vh.stopRecording(cancel = false)
+                        if (result != null) {
+                            val (base64Audio, duration) = result
+                            val act = activity ?: return@setOnTouchListener true
+                            val senderNick = WatchTogetherManager.getSavedNickname(act).ifBlank {
+                                WatchTogetherManager.currentRoom?.members?.get(WatchTogetherManager.myUserId)?.name
+                                    ?: WatchTogetherManager.pendingHostNickname
+                                    ?: "User"
+                            }
+                            WatchTogetherManager.sendVoiceMessage(base64Audio, duration, senderNick)
+                        } else {
+                            showToast(R.string.voice_too_short)
+                        }
+                        true
+                    }
+                    MotionEvent.ACTION_CANCEL -> {
+                        btnPlayerChatMic.clearColorFilter()
+                        vh.stopRecording(cancel = true)
+                        true
+                    }
+                    else -> false
+                }
+            }
+
+            btnPlayerChatMic.setOnClickListener {
+                val vh = voiceHelper ?: return@setOnClickListener
+                val act = activity ?: return@setOnClickListener
+                if (!vh.hasMicPermission()) {
+                    ActivityCompat.requestPermissions(
+                        act,
+                        arrayOf(Manifest.permission.RECORD_AUDIO),
+                        1337
+                    )
+                    showToast(R.string.voice_permission_needed)
+                    return@setOnClickListener
+                }
+                if (!vh.isRecording) {
+                    val started = vh.startRecording()
+                    if (started) {
+                        btnPlayerChatMic.setColorFilter(Color.parseColor("#FF3344"))
+                        showToast(R.string.voice_recording)
+                    }
+                } else {
+                    btnPlayerChatMic.clearColorFilter()
+                    val result = vh.stopRecording(cancel = false)
+                    if (result != null) {
+                        val (base64Audio, duration) = result
+                        val senderNick = WatchTogetherManager.getSavedNickname(act).ifBlank {
+                            WatchTogetherManager.currentRoom?.members?.get(WatchTogetherManager.myUserId)?.name
+                                ?: WatchTogetherManager.pendingHostNickname
+                                ?: "User"
+                        }
+                        WatchTogetherManager.sendVoiceMessage(base64Audio, duration, senderNick)
+                    } else {
+                        showToast(R.string.voice_too_short)
+                    }
+                }
             }
 
             etPlayerChatInput.setOnEditorActionListener { _, actionId, _ ->

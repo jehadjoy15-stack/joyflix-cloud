@@ -291,4 +291,10 @@ interface IPlayer {
 
     /** Get the current subtitle cues, for use with syncing */
     fun getSubtitleCues(): List<SubtitleCue>
+
+    /** Set player volume (0.0f to 1.0f) for audio ducking / voice calls */
+    fun setVolume(volume: Float) {}
+
+    /** Get player volume */
+    fun getVolume(): Float = 1.0f
 }

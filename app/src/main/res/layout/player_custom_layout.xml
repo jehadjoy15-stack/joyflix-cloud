@@ -129,6 +129,47 @@
             tools:text="Amazing scene right here!" />
     </LinearLayout>
 
+    <!-- Watch Together: Voice Speaking Indicator Bubble -->
+    <LinearLayout
+        android:id="@+id/player_voice_toast_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="36dp"
+        android:background="@drawable/bg_player_chat_bubble"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:elevation="15dp"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <ImageView
+            android:id="@+id/player_voice_icon"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_marginEnd="8dp"
+            android:src="@drawable/ic_baseline_mic_24"
+            app:tint="?attr/colorPrimary" />
+
+        <TextView
+            android:id="@+id/player_voice_speaker_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="?attr/colorPrimary"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            tools:text="Joy: " />
+
+        <TextView
+            android:id="@+id/player_voice_status_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:textColor="@android:color/white"
+            android:textSize="14sp"
+            android:text="@string/voice_speaking" />
+    </LinearLayout>
+
     <!-- Watch Together: Chat Input Bar Over Video -->
     <LinearLayout
         android:id="@+id/player_chat_bar_container"
@@ -217,6 +258,18 @@
                 android:textColor="@android:color/white"
                 android:textColorHint="#99FFFFFF"
                 android:textSize="14sp" />
+
+            <ImageView
+                android:id="@+id/btn_player_chat_mic"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:layout_marginEnd="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:padding="8dp"
+                android:src="@drawable/ic_baseline_mic_24"
+                app:tint="?attr/colorPrimary" />
 
             <ImageView
                 android:id="@+id/btn_player_chat_send"

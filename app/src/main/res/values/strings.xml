@@ -823,4 +823,9 @@
     <string name="guest_joined_notify">%s has joined the room!</string>
     <string name="chat">Chat</string>
     <string name="type_a_message">Type a message...</string>
+    <string name="voice_hold_to_talk">Hold to talk, release to send</string>
+    <string name="voice_recording">Recording voice...</string>
+    <string name="voice_too_short">Hold longer to send voice</string>
+    <string name="voice_speaking">speaking...</string>
+    <string name="voice_permission_needed">Microphone permission needed for Voice Call</string>
 </resources>

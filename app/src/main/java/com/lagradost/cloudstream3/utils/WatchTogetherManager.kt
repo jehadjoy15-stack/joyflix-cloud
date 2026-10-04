@@ -67,6 +67,16 @@ object WatchTogetherManager {
     )
 
     @Serializable
+    data class VoiceMessage(
+        @JsonProperty("id") val id: String = "",
+        @JsonProperty("senderId") val senderId: String = "",
+        @JsonProperty("senderName") val senderName: String = "",
+        @JsonProperty("audioBase64") val audioBase64: String = "",
+        @JsonProperty("durationMs") val durationMs: Long = 0L,
+        @JsonProperty("timestamp") val timestamp: Long = 0L
+    )
+
+    @Serializable
     data class RoomData(
         @JsonProperty("roomId") val roomId: String = "",
         @JsonProperty("title") val title: String? = null,
@@ -84,7 +94,8 @@ object WatchTogetherManager {
         @JsonProperty("playback") val playback: PlaybackState = PlaybackState(),
         @JsonProperty("episodeIndex") val episodeIndex: Int? = null,
         @JsonProperty("members") val members: Map<String, MemberData> = emptyMap(),
-        @JsonProperty("lastMessage") val lastMessage: ChatMessage? = null
+        @JsonProperty("lastMessage") val lastMessage: ChatMessage? = null,
+        @JsonProperty("lastVoice") val lastVoice: VoiceMessage? = null
     )
 
     var currentRoomId: String? = null
@@ -119,10 +130,42 @@ object WatchTogetherManager {
     private var onMembersUpdatedCallback: ((List<MemberData>) -> Unit)? = null
     private var onNewMessageCallback: ((ChatMessage) -> Unit)? = null
     private var lastSeenMessageId: String? = null
+    private var onNewVoiceCallback: ((VoiceMessage) -> Unit)? = null
+    private var lastSeenVoiceId: String? = null
     private val knownMemberIds = mutableSetOf<String>()
 
     fun setOnNewMessageListener(listener: ((ChatMessage) -> Unit)?) {
         onNewMessageCallback = listener
+    }
+
+    fun setOnNewVoiceListener(listener: ((VoiceMessage) -> Unit)?) {
+        onNewVoiceCallback = listener
+    }
+
+    fun sendVoiceMessage(base64Audio: String, durationMs: Long, senderNickname: String) {
+        val roomId = currentRoomId ?: return
+        if (base64Audio.isBlank()) return
+
+        val voice = VoiceMessage(
+            id = UUID.randomUUID().toString(),
+            senderId = myUserId,
+            senderName = senderNickname.ifBlank { "User" },
+            audioBase64 = base64Audio,
+            durationMs = durationMs,
+            timestamp = System.currentTimeMillis()
+        )
+
+        lastSeenVoiceId = voice.id
+
+        ioSafe {
+            try {
+                val url = "${getBaseUrl()}/rooms/$roomId/lastVoice.json"
+                val body = voice.toJson().toRequestBody(JSON_MEDIA_TYPE)
+                app.put(url, requestBody = body)
+            } catch (e: Throwable) {
+                logError(e)
+            }
+        }
     }
 
     fun sendMessage(text: String, senderNickname: String) {
@@ -331,6 +374,7 @@ object WatchTogetherManager {
         stopListening()
         knownMemberIds.clear()
         lastSeenMessageId = null
+        lastSeenVoiceId = null
 
         if (roomToClean != null) {
             ioSafe {
@@ -434,6 +478,15 @@ object WatchTogetherManager {
                                 lastSeenMessageId = msg.id
                                 if (msg.senderId != myUserId) {
                                     onNewMessageCallback?.invoke(msg)
+                                }
+                            }
+
+                            // 4. Check for new voice messages
+                            val voice = room.lastVoice
+                            if (voice != null && voice.id != lastSeenVoiceId) {
+                                lastSeenVoiceId = voice.id
+                                if (voice.senderId != myUserId) {
+                                    onNewVoiceCallback?.invoke(voice)
                                 }
                             }
                         }
