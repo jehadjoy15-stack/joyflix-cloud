@@ -353,54 +353,76 @@
                 tools:text="👑 Host (Joy)" />
         </LinearLayout>
 
-        <!-- Live Voice Call Card -->
+        <!-- Live Voice Call Card (Premium Discord Style) -->
         <LinearLayout
             android:id="@+id/layout_dialog_voice"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:background="@drawable/player_button_background"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:padding="12dp">
+            android:padding="14dp">
 
-            <ImageView
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:src="@drawable/ic_baseline_mic_24"
-                app:tint="?attr/colorPrimary" />
+            <!-- Rounded Glass Icon Badge -->
+            <FrameLayout
+                android:id="@+id/icon_dialog_voice_badge"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/video_tap_button_always_white"
+                app:backgroundTint="#26FFFFFF">
+
+                <ImageView
+                    android:id="@+id/icon_dialog_voice"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_baseline_mic_24"
+                    app:tint="@android:color/white" />
+            </FrameLayout>
 
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="8dp"
                 android:layout_weight="1"
-                android:layout_marginStart="10dp"
                 android:orientation="vertical">
 
                 <TextView
+                    android:id="@+id/tv_dialog_voice_title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/voice_call"
+                    android:text="@string/voice_chat"
                     android:textColor="?attr/textColor"
-                    android:textSize="13sp"
+                    android:textSize="14sp"
                     android:textStyle="bold" />
 
                 <TextView
+                    android:id="@+id/tv_dialog_voice_subtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
                     android:text="@string/voice_hold_to_talk"
                     android:textColor="?attr/grayTextColor"
-                    android:textSize="11sp" />
+                    android:textSize="12sp" />
             </LinearLayout>
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_dialog_mic"
                 style="@style/WhiteButton"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:text="@string/voice_call"
+                android:layout_height="38dp"
+                android:paddingHorizontal="16dp"
+                android:text="@string/voice_turn_on"
+                android:textAllCaps="false"
+                android:textSize="13sp"
+                app:cornerRadius="19dp"
                 app:icon="@drawable/ic_baseline_mic_24"
-                app:iconGravity="textStart" />
+                app:iconGravity="textStart"
+                app:iconSize="18dp" />
         </LinearLayout>
 
         <!-- Host Start Video Button -->

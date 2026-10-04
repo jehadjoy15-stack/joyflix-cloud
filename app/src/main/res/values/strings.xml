@@ -829,6 +829,9 @@
     <string name="voice_speaking">speaking...</string>
     <string name="voice_permission_needed">Microphone permission needed for Voice Call</string>
     <string name="voice_call">Voice</string>
+    <string name="voice_chat">Voice Chat</string>
+    <string name="voice_turn_on">Turn ON</string>
+    <string name="voice_status_live">● Live • Noise Suppressed</string>
     <string name="voice_join_room_first">Join or create a Watch Party room first to talk!</string>
     <string name="mic_on">Mic ON</string>
     <string name="mic_off">Mic OFF</string>

@@ -803,12 +803,7 @@ object PluginManager {
             currentlyLoading = null
             true
         } catch (e: Throwable) {
-            Log.e(TAG, "Failed to load $file: ${Log.getStackTraceString(e)}")
-            showToast(
-                // context.getActivity(), // we are not always on the main thread
-                context.getString(R.string.plugin_load_fail).format(fileName),
-                Toast.LENGTH_LONG
-            )
+            Log.w(TAG, "Failed to load $file (silently skipping): ${e.message}")
             currentlyLoading = null
             false
         }

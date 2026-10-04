@@ -16,6 +16,7 @@ import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainActivity
 import com.lagradost.cloudstream3.SearchResponse
+import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.amap
 import com.lagradost.cloudstream3.mvvm.Resource
 import com.lagradost.cloudstream3.mvvm.debugAssert
@@ -336,7 +337,12 @@ class HomeViewModel : ViewModel() {
             addJob?.cancel()
 
             val validAPIs = context?.filterProviderByPreferredMedia()?.filter {
-                it.hasMainPage && it.name != noneApi.name && it.name != allSourcesApi.name && it.name != randomApi.name
+                it.hasMainPage &&
+                it.name != noneApi.name &&
+                it.name != allSourcesApi.name &&
+                it.name != randomApi.name &&
+                !it.name.contains("IPTV", ignoreCase = true) &&
+                !it.supportedTypes.all { type -> type == TvType.Live }
             } ?: emptyList()
 
             if (validAPIs.isEmpty()) {
@@ -372,19 +378,22 @@ class HomeViewModel : ViewModel() {
                                 val listItems = mutableListOf<Pair<String, ExpandableHomepageList>>()
                                 data.value.forEach { home ->
                                     home?.items?.forEach { list ->
-                                        val filteredList = context?.filterHomePageListByFilmQuality(list) ?: list
-                                        if (filteredList.list.isNotEmpty()) {
-                                            val listTitle = if (targetApis.size > 1) "${provider.name} • ${list.name}" else list.name
-                                            val expItem = ExpandableHomepageList(
-                                                filteredList.copy(
-                                                    name = listTitle,
-                                                    list = CopyOnWriteArrayList(filteredList.list)
-                                                ), 1, home.hasNext
-                                            )
-                                            listItems.add(listTitle to expItem)
-                                            synchronized(expandable) {
-                                                expandable[listTitle] = expItem
-                                                allItems.add(expItem.list)
+                                        if (!list.name.contains("IPTV", ignoreCase = true) && !list.name.contains("Live TV", ignoreCase = true)) {
+                                            val nonLiveItems = list.list.filter { item -> item.type != TvType.Live }
+                                            val filteredList = context?.filterHomePageListByFilmQuality(list.copy(list = nonLiveItems)) ?: list.copy(list = nonLiveItems)
+                                            if (filteredList.list.isNotEmpty()) {
+                                                val listTitle = if (targetApis.size > 1) "${provider.name} • ${list.name}" else list.name
+                                                val expItem = ExpandableHomepageList(
+                                                    filteredList.copy(
+                                                        name = listTitle,
+                                                        list = CopyOnWriteArrayList(filteredList.list)
+                                                    ), 1, home.hasNext
+                                                )
+                                                listItems.add(listTitle to expItem)
+                                                synchronized(expandable) {
+                                                    expandable[listTitle] = expItem
+                                                    allItems.add(expItem.list)
+                                                }
                                             }
                                         }
                                     }
@@ -478,16 +487,21 @@ class HomeViewModel : ViewModel() {
                     expandable.clear()
                     data.value.forEach { home ->
                         home?.items?.forEach { list ->
-                            val filteredList =
-                                context?.filterHomePageListByFilmQuality(list) ?: list
-                            expandable[list.name] =
-                                ExpandableHomepageList(
-                                    filteredList.copy(
-                                        list = CopyOnWriteArrayList(
-                                            filteredList.list
+                            if (!list.name.contains("IPTV", ignoreCase = true) && !list.name.contains("Live TV", ignoreCase = true)) {
+                                val nonLiveItems = list.list.filter { item -> item.type != TvType.Live }
+                                val filteredList =
+                                    context?.filterHomePageListByFilmQuality(list.copy(list = nonLiveItems)) ?: list.copy(list = nonLiveItems)
+                                if (filteredList.list.isNotEmpty()) {
+                                    expandable[list.name] =
+                                        ExpandableHomepageList(
+                                            filteredList.copy(
+                                                list = CopyOnWriteArrayList(
+                                                    filteredList.list
+                                                )
+                                            ), 1, home.hasNext
                                         )
-                                    ), 1, home.hasNext
-                                )
+                                }
+                            }
                         }
                     }
 
@@ -581,9 +595,18 @@ class HomeViewModel : ViewModel() {
 
     private fun afterPluginsLoaded(forceReload: Boolean) = ioSafe {
         delay(400)
+        val currentPage = page.value
+        if (!forceReload && currentPage is Resource.Success && currentPage.value.isNotEmpty()) {
+            return@ioSafe
+        }
         val currentHome = DataStoreHelper.currentHomePage
         val validAPIs = context?.filterProviderByPreferredMedia()?.filter {
-            it.hasMainPage && it.name != noneApi.name && it.name != randomApi.name && it.name != allSourcesApi.name
+            it.hasMainPage &&
+            it.name != noneApi.name &&
+            it.name != randomApi.name &&
+            it.name != allSourcesApi.name &&
+            !it.name.contains("IPTV", ignoreCase = true) &&
+            !it.supportedTypes.all { type -> type == TvType.Live }
         }
         if (currentHome == null || currentHome == noneApi.name || currentHome == allSourcesApi.name || validAPIs?.none { it.name == currentHome } == true) {
             if (!validAPIs.isNullOrEmpty()) {

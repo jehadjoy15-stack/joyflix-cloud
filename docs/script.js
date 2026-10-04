@@ -114,7 +114,7 @@ async function fetchLatestGitHubRelease() {
         }
 
         if (release) {
-            const rawTag = release.tag_name || 'v4.8.8';
+            const rawTag = release.tag_name || 'v5.0.0';
             const cleanVersion = rawTag.replace(/^v/i, '');
             const displayTag = rawTag.startsWith('v') ? rawTag : `v${rawTag}`;
 

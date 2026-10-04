@@ -993,15 +993,25 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
             }, deleteCallback = delete)
         }
 
-        binding.apply {
-            homeLoadingShimmer.startShimmer()
-            homeLoading.isVisible = true
-            homeLoadingError.isVisible = false
-            homeMasterRecycler.isInvisible = true
+        val hasData = (homeViewModel.page.value as? Resource.Success)?.value?.isNotEmpty() == true
+        if (hasData) {
+            binding.apply {
+                homeLoadingShimmer.stopShimmer()
+                homeLoading.isVisible = false
+                homeLoadingError.isVisible = false
+                homeMasterRecycler.isVisible = true
+            }
+        } else {
+            binding.apply {
+                homeLoadingShimmer.startShimmer()
+                homeLoading.isVisible = true
+                homeLoadingError.isVisible = false
+                homeMasterRecycler.isInvisible = true
+            }
+            homeViewModel.loadAndCancel(DataStoreHelper.currentHomePage, false)
         }
 
         homeViewModel.reloadStored()
-        homeViewModel.loadAndCancel(DataStoreHelper.currentHomePage, false)
         //loadHomePage(false)
 
         // nice profile pic on homepage

@@ -78,7 +78,7 @@ class WatchTogetherVoiceHelper(private val context: Context) {
             }
         }
         liveChunkRunnable = runnable
-        mainHandler.postDelayed(runnable, 3500L) // 3.5-second live audio packets
+        mainHandler.postDelayed(runnable, 1200L) // Fast 1.2-second live audio packets for ultra-low latency
     }
 
     @Synchronized
@@ -113,11 +113,17 @@ class WatchTogetherVoiceHelper(private val context: Context) {
             }
 
             recorder.apply {
-                setAudioSource(MediaRecorder.AudioSource.MIC)
+                // VOICE_COMMUNICATION enables native Android hardware Noise Suppression (NS),
+                // Acoustic Echo Cancellation (AEC), and Automatic Gain Control (AGC) for crystal clear voice
+                try {
+                    setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+                } catch (_: Throwable) {
+                    setAudioSource(MediaRecorder.AudioSource.MIC)
+                }
                 setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                 setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                setAudioEncodingBitRate(32000)
-                setAudioSamplingRate(24000)
+                setAudioEncodingBitRate(24000)
+                setAudioSamplingRate(16000)
                 setAudioChannels(1)
                 setOutputFile(file.absolutePath)
                 prepare()
@@ -151,7 +157,7 @@ class WatchTogetherVoiceHelper(private val context: Context) {
             }
         }
 
-        if (cancel || duration < 400L || file == null || !file.exists() || file.length() < 100) {
+        if (cancel || duration < 250L || file == null || !file.exists() || file.length() < 100) {
             file?.delete()
             return null
         }

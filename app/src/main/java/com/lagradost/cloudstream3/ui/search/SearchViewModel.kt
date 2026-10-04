@@ -10,6 +10,7 @@ import com.lagradost.cloudstream3.CloudStreamApp.Companion.getKeys
 import com.lagradost.cloudstream3.CloudStreamApp.Companion.setKey
 import com.lagradost.cloudstream3.HomePageList
 import com.lagradost.cloudstream3.SearchResponse
+import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.amap
 import com.lagradost.cloudstream3.mvvm.Resource
 import com.lagradost.cloudstream3.mvvm.debugAssert
@@ -221,15 +222,20 @@ class SearchViewModel : ViewModel() {
 
             withContext(Dispatchers.IO) { // This interrupts UI otherwise
                 repos.filter { a ->
+                    !a.name.contains("IPTV", ignoreCase = true) &&
+                    !a.api.supportedTypes.all { it == TvType.Live } &&
                     (ignoreSettings || (providersActive.isEmpty() || providersActive.contains(a.name))) && (!isQuickSearch || a.hasQuickSearch)
                 }.amap { a -> // Parallel
                     val search = if (isQuickSearch) a.quickSearch(query) else a.search(query, 1)
                     if (currentSearchIndex != currentIndex) return@amap
                     if (search is Resource.Success) {
                         val searchValue = search.value
-                        val sortedItems = rankSearchResults(searchValue.items, query)
-                        expandableSearches[a.name] =
-                            ExpandableSearchList(sortedItems, 1, searchValue.hasNext)
+                        val nonLiveItems = searchValue.items.filter { it.type != TvType.Live }
+                        val sortedItems = rankSearchResults(nonLiveItems, query)
+                        if (sortedItems.isNotEmpty()) {
+                            expandableSearches[a.name] =
+                                ExpandableSearchList(sortedItems, 1, searchValue.hasNext)
+                        }
                     }
 
                     _currentSearch.postValue(expandableSearches)

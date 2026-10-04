@@ -177,6 +177,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="end|center_vertical"
         android:layout_marginEnd="16dp"
+        android:alpha="0.55"
         android:visibility="gone"
         tools:visibility="visible">
 
@@ -185,11 +186,11 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:contentDescription="@string/voice_call"
-            android:src="@drawable/ic_baseline_mic_24"
+            android:src="@drawable/ic_baseline_mic_off_24"
             app:backgroundTint="?attr/colorPrimary"
             app:tint="@android:color/white"
             app:fabSize="mini"
-            app:elevation="12dp" />
+            app:elevation="4dp" />
     </FrameLayout>
 
     <!-- Watch Together: Chat Input Bar Over Video -->
@@ -1153,7 +1154,7 @@
                                 android:id="@+id/player_watch_together_btt"
                                 style="@style/VideoButton"
                                 android:layout_height="40dp"
-
+                                android:visibility="gone"
                                 android:nextFocusLeft="@id/player_tracks_btt"
                                 android:nextFocusRight="@id/player_mic_btt"
                                 android:text="@string/watch_together"
@@ -1163,7 +1164,7 @@
                                 android:id="@+id/player_mic_btt"
                                 style="@style/VideoButton"
                                 android:layout_height="40dp"
-
+                                android:visibility="gone"
                                 android:nextFocusLeft="@id/player_watch_together_btt"
                                 android:nextFocusRight="@id/player_chat_btt"
                                 android:text="@string/voice_call"

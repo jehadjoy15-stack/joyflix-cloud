@@ -441,7 +441,7 @@ object WatchTogetherManager {
             val url = "${getBaseUrl()}/rooms/$roomId.json"
             while (isActive && currentRoomId == roomId) {
                 try {
-                    delay(1200)
+                    delay(500)
                     if (!isActive || currentRoomId != roomId) break
 
                     val res = app.get(url)

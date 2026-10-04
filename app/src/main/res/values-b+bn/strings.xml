@@ -447,6 +447,9 @@
     <string name="voice_speaking">কথা বলছেন...</string>
     <string name="voice_permission_needed">ভয়েস কলের জন্য মাইক্রোফোনের অনুমতি প্রয়োজন</string>
     <string name="voice_call">ভয়েস কল</string>
+    <string name="voice_chat">ভয়েস চ্যাট</string>
+    <string name="voice_turn_on">চালু করুন</string>
+    <string name="voice_status_live">● লাইভ • নয়েজ ফিল্টার চালু</string>
     <string name="voice_join_room_first">ভয়েসে কথা বলতে প্রথমে ওয়াচ পার্টি রুমে যুক্ত হন!</string>
     <string name="mic_on">মাইক অন</string>
     <string name="mic_off">মাইক অফ</string>
