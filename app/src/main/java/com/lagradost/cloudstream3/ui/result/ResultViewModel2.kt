@@ -2676,6 +2676,7 @@ class ResultViewModel2 : ViewModel() {
 
             when (val data = repo.load(validUrl)) {
                 is Resource.Failure -> {
+                    com.lagradost.cloudstream3.utils.DeadLinkManager.markDead(validUrl, "Provider load failed: ${data.errorString}")
                     _page.postValue(data)
                 }
 

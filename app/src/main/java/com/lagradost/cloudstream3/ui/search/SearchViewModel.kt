@@ -19,6 +19,7 @@ import com.lagradost.cloudstream3.ui.APIRepository
 import com.lagradost.cloudstream3.ui.home.HomeViewModel
 import com.lagradost.cloudstream3.utils.Coroutines.ioSafe
 import com.lagradost.cloudstream3.utils.DataStoreHelper.currentAccount
+import com.lagradost.cloudstream3.utils.StreamVerificationManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -137,6 +138,7 @@ class SearchViewModel : ViewModel() {
             val next = repo.search(query, nextPage)
             if (next is Resource.Success) {
                 val nextValue = next.value
+                val playableItems = StreamVerificationManager.filterPlayable(nextValue.items)
                 expandableSearches[name]?.apply {
                     this.hasNext = nextValue.hasNext
                     this.currentPage = nextPage
@@ -147,7 +149,7 @@ class SearchViewModel : ViewModel() {
 
                     // just to be sure we are not adding the same shit for some reason
                     // Avoids weird behavior in the recyclerview by recreating the list
-                    this.list = rankSearchResults((this.list + nextValue.items).distinctBy { it.url }, query)
+                    this.list = rankSearchResults((this.list + playableItems).distinctBy { it.url }, query)
                 } ?: debugWarning {
                     "Expanded an item not in search load named $name, current list is ${expandableSearches.keys}"
                 }
@@ -228,8 +230,11 @@ class SearchViewModel : ViewModel() {
                     if (search is Resource.Success) {
                         val searchValue = search.value
                         val sortedItems = rankSearchResults(searchValue.items, query)
-                        expandableSearches[a.name] =
-                            ExpandableSearchList(sortedItems, 1, searchValue.hasNext)
+                        val playableItems = StreamVerificationManager.filterPlayable(sortedItems)
+                        if (playableItems.isNotEmpty()) {
+                            expandableSearches[a.name] =
+                                ExpandableSearchList(playableItems, 1, searchValue.hasNext)
+                        }
                     }
 
                     _currentSearch.postValue(expandableSearches)

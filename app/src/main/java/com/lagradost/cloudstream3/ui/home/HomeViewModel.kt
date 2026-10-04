@@ -52,6 +52,7 @@ import com.lagradost.cloudstream3.utils.DataStoreHelper.getCurrentAccount
 import com.lagradost.cloudstream3.utils.DataStoreHelper.getLastWatched
 import com.lagradost.cloudstream3.utils.DataStoreHelper.getResultWatchState
 import com.lagradost.cloudstream3.utils.DataStoreHelper.getViewPos
+import com.lagradost.cloudstream3.utils.StreamVerificationManager
 import com.lagradost.cloudstream3.utils.downloader.DownloadObjects
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -261,7 +262,8 @@ class HomeViewModel : ViewModel() {
                                     "Expanded contained an item that was previously already in the list\n${list.name} = ${this.list.list}\n${newList.name} = ${newList.list}"
                                 }
 
-                                this.list.list += newList.list
+                                val playableNew = StreamVerificationManager.filterPlayable(newList.list)
+                                this.list.list += playableNew
                                 this.list.list.distinctBy { it.url } // just to be sure we are not adding the same shit for some reason
                             } ?: debugWarning {
                                 "Expanded an item not in main load named $key, current list is ${expandable.keys}"
@@ -373,12 +375,13 @@ class HomeViewModel : ViewModel() {
                                 data.value.forEach { home ->
                                     home?.items?.forEach { list ->
                                         val filteredList = context?.filterHomePageListByFilmQuality(list) ?: list
-                                        if (filteredList.list.isNotEmpty()) {
-                                            val listTitle = if (targetApis.size > 1) "${provider.name} • ${list.name}" else list.name
+                                        val playableHomeList = StreamVerificationManager.filterHomePageList(filteredList)
+                                        if (playableHomeList.list.isNotEmpty()) {
+                                            val listTitle = if (targetApis.size > 1) "${provider.name} • ${playableHomeList.name}" else playableHomeList.name
                                             val expItem = ExpandableHomepageList(
-                                                filteredList.copy(
+                                                playableHomeList.copy(
                                                     name = listTitle,
-                                                    list = CopyOnWriteArrayList(filteredList.list)
+                                                    list = CopyOnWriteArrayList(playableHomeList.list)
                                                 ), 1, home.hasNext
                                             )
                                             listItems.add(listTitle to expItem)
@@ -480,18 +483,21 @@ class HomeViewModel : ViewModel() {
                         home?.items?.forEach { list ->
                             val filteredList =
                                 context?.filterHomePageListByFilmQuality(list) ?: list
-                            expandable[list.name] =
-                                ExpandableHomepageList(
-                                    filteredList.copy(
-                                        list = CopyOnWriteArrayList(
-                                            filteredList.list
-                                        )
-                                    ), 1, home.hasNext
-                                )
+                            val playableHomeList = StreamVerificationManager.filterHomePageList(filteredList)
+                            if (playableHomeList.list.isNotEmpty()) {
+                                expandable[playableHomeList.name] =
+                                    ExpandableHomepageList(
+                                        playableHomeList.copy(
+                                            list = CopyOnWriteArrayList(
+                                                playableHomeList.list
+                                            )
+                                        ), 1, home.hasNext
+                                    )
+                            }
                         }
                     }
 
-                    val items = data.value.mapNotNull { it?.items }.flatten()
+                    val items = expandable.values.map { it.list }
 
 
                     previewResponses.clear()

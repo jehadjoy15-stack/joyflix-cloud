@@ -1594,6 +1594,10 @@ class GeneratorPlayer : FullScreenPlayer() {
 
     private fun noLinksFound() {
         viewModel.forceClearCache = true
+        val itemUrl = viewModel.state.generatorState?.response?.url
+        if (!itemUrl.isNullOrBlank()) {
+            com.lagradost.cloudstream3.utils.DeadLinkManager.markDead(itemUrl, "No links found in player")
+        }
         val hiddenLinks = viewModel.state.sortLinks(currentQualityProfile).count { !it.shouldUseLink }
 
         context?.let { ctx ->
