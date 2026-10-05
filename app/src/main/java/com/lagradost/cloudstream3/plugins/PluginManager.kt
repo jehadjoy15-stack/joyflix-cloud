@@ -353,7 +353,7 @@ object PluginManager {
             loadedOnlinePlugins = true
             isSyncingPlugins = false
             Log.i(TAG, "JoyFlix sync completed! Firing afterPluginsLoadedEvent...")
-            afterPluginsLoadedEvent.invoke(true)
+            afterPluginsLoadedEvent.invoke(false)
         }
     }
 

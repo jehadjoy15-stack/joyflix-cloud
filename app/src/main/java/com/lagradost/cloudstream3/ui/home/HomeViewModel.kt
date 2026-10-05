@@ -331,9 +331,12 @@ class HomeViewModel : ViewModel() {
         if (api.name == allSourcesApi.name) {
             repo = APIRepository(allSourcesApi)
             _apiName.postValue(allSourcesApi.name)
-            _randomItems.postValue(listOf())
-            _page.postValue(Resource.Loading())
-            _preview.postValue(Resource.Loading())
+            val isCold = synchronized(expandable) { expandable.isEmpty() }
+            if (isCold) {
+                _randomItems.postValue(listOf())
+                _page.postValue(Resource.Loading())
+                _preview.postValue(Resource.Loading())
+            }
             addJob?.cancel()
 
             val validAPIs = context?.filterProviderByPreferredMedia()?.filter {
@@ -346,8 +349,10 @@ class HomeViewModel : ViewModel() {
             } ?: emptyList()
 
             if (validAPIs.isEmpty()) {
-                _page.postValue(Resource.Loading())
-                _preview.postValue(Resource.Loading())
+                if (isCold) {
+                    _page.postValue(Resource.Loading())
+                    _preview.postValue(Resource.Loading())
+                }
                 if (!PluginManager.isSyncingPlugins && PluginManager.loadedOnlinePlugins) {
                     delay(1500)
                     if (page.value is Resource.Loading) {
@@ -358,7 +363,11 @@ class HomeViewModel : ViewModel() {
             }
 
             try {
-                expandable.clear()
+                if (isCold) {
+                    synchronized(expandable) {
+                        expandable.clear()
+                    }
+                }
                 val allItems = mutableListOf<HomePageList>()
 
                 val targetApis = if (validAPIs.size > 10) {
@@ -369,6 +378,7 @@ class HomeViewModel : ViewModel() {
                     validAPIs
                 }
 
+                var lastEmittedTime = 0L
                 targetApis.amap { provider ->
                     try {
                         withTimeoutOrNull(12000L) {
@@ -399,8 +409,12 @@ class HomeViewModel : ViewModel() {
                                     }
                                 }
                                 if (listItems.isNotEmpty()) {
-                                    synchronized(expandable) {
-                                        _page.postValue(Resource.Success(LinkedHashMap(expandable)))
+                                    val now = System.currentTimeMillis()
+                                    if (isCold && (now - lastEmittedTime > 600L || lastEmittedTime == 0L)) {
+                                        lastEmittedTime = now
+                                        synchronized(expandable) {
+                                            _page.postValue(Resource.Success(LinkedHashMap(expandable)))
+                                        }
                                     }
                                 }
                                 listItems
@@ -432,7 +446,7 @@ class HomeViewModel : ViewModel() {
                         2
                     )
                     _preview.postValue(Resource.Success((size < currentList.size) to previewResponses))
-                } else {
+                } else if (isCold) {
                     _preview.postValue(Resource.Loading())
                 }
 
@@ -441,9 +455,9 @@ class HomeViewModel : ViewModel() {
                         _page.postValue(Resource.Success(LinkedHashMap(expandable)))
                     } else {
                         if (PluginManager.isSyncingPlugins || !PluginManager.loadedOnlinePlugins) {
-                            _page.postValue(Resource.Loading())
+                            if (isCold) _page.postValue(Resource.Loading())
                         } else {
-                            _page.postValue(Resource.Failure(false, "No homepage items found. Pull to refresh or check extensions in Settings."))
+                            if (isCold) _page.postValue(Resource.Failure(false, "No homepage items found. Pull to refresh or check extensions in Settings."))
                         }
                     }
                 }
@@ -457,9 +471,9 @@ class HomeViewModel : ViewModel() {
                 }
                 logError(e)
                 if (PluginManager.isSyncingPlugins || !PluginManager.loadedOnlinePlugins) {
-                    _page.postValue(Resource.Loading())
+                    if (isCold) _page.postValue(Resource.Loading())
                 } else {
-                    _page.postValue(Resource.Failure(false, e.message ?: "Error"))
+                    if (isCold) _page.postValue(Resource.Failure(false, e.message ?: "Error"))
                 }
             }
             return@ioSafe
@@ -468,7 +482,6 @@ class HomeViewModel : ViewModel() {
         repo = APIRepository(api)
 
         _apiName.postValue(repo?.name)
-        _randomItems.postValue(listOf())
 
         if (repo?.hasMainPage != true) {
             _page.postValue(Resource.Success(emptyMap()))
@@ -476,15 +489,21 @@ class HomeViewModel : ViewModel() {
             return@ioSafe
         }
 
-        _page.postValue(Resource.Loading())
-        _preview.postValue(Resource.Loading())
+        val isColdSingle = synchronized(expandable) { expandable.isEmpty() }
+        if (isColdSingle) {
+            _randomItems.postValue(listOf())
+            _page.postValue(Resource.Loading())
+            _preview.postValue(Resource.Loading())
+        }
         // cancel the current preview expand as that is no longer relevant
         addJob?.cancel()
 
         when (val data = repo?.getMainPage(1, null)) {
             is Resource.Success -> {
                 try {
-                    expandable.clear()
+                    synchronized(expandable) {
+                        expandable.clear()
+                    }
                     data.value.forEach { home ->
                         home?.items?.forEach { list ->
                             if (!list.name.contains("IPTV", ignoreCase = true) && !list.name.contains("Live TV", ignoreCase = true)) {
@@ -492,14 +511,16 @@ class HomeViewModel : ViewModel() {
                                 val filteredList =
                                     context?.filterHomePageListByFilmQuality(list.copy(list = nonLiveItems)) ?: list.copy(list = nonLiveItems)
                                 if (filteredList.list.isNotEmpty()) {
-                                    expandable[list.name] =
-                                        ExpandableHomepageList(
-                                            filteredList.copy(
-                                                list = CopyOnWriteArrayList(
-                                                    filteredList.list
-                                                )
-                                            ), 1, home.hasNext
-                                        )
+                                    synchronized(expandable) {
+                                        expandable[list.name] =
+                                            ExpandableHomepageList(
+                                                filteredList.copy(
+                                                    list = CopyOnWriteArrayList(
+                                                        filteredList.list
+                                                    )
+                                                ), 1, home.hasNext
+                                            )
+                                    }
                                 }
                             }
                         }
@@ -535,16 +556,20 @@ class HomeViewModel : ViewModel() {
                         }
                     }
                     if (previewResponses.isEmpty()) {
-                        _preview.postValue(
-                            Resource.Failure(
-                                false,
-                                "No homepage responses"
+                        if (isColdSingle) {
+                            _preview.postValue(
+                                Resource.Failure(
+                                    false,
+                                    "No homepage responses"
+                                )
                             )
-                        )
+                        }
                     } else {
                         _preview.postValue(Resource.Success((previewResponsesAdded.size < currentShuffledList.size) to previewResponses))
                     }
-                    _page.postValue(Resource.Success(expandable))
+                    synchronized(expandable) {
+                        _page.postValue(Resource.Success(LinkedHashMap(expandable)))
+                    }
                 } catch (e: Exception) {
                     _randomItems.postValue(emptyList())
                     logError(e)
@@ -558,14 +583,18 @@ class HomeViewModel : ViewModel() {
                     return@ioSafe
                 }
                 if (PluginManager.isSyncingPlugins || !PluginManager.loadedOnlinePlugins) {
-                    _page.postValue(Resource.Loading())
-                    _preview.postValue(Resource.Loading())
+                    if (isColdSingle) {
+                        _page.postValue(Resource.Loading())
+                        _preview.postValue(Resource.Loading())
+                    }
                     return@ioSafe
                 }
-                @Suppress("UNNECESSARY_NOT_NULL_ASSERTION")
-                _page.postValue(data!!)
-                @Suppress("UNNECESSARY_NOT_NULL_ASSERTION")
-                _preview.postValue(data!!)
+                if (isColdSingle) {
+                    @Suppress("UNNECESSARY_NOT_NULL_ASSERTION")
+                    _page.postValue(data!!)
+                    @Suppress("UNNECESSARY_NOT_NULL_ASSERTION")
+                    _preview.postValue(data!!)
+                }
             }
 
             else -> Unit

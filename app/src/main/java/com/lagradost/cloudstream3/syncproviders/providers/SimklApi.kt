@@ -57,8 +57,14 @@ class SimklApi : SyncAPI() {
     override val idPrefix = "simkl"
 
     override val redirectUrlIdentifier = "simkl"
-    override fun isValidRedirectUrl(url: String): Boolean =
-        url.contains("/simkl") || url.contains("/simkllogin") || url.contains("simkl") || (url.contains("joyflix.fun") && (url.contains("code=") || url.contains("state=")) && !url.contains("RequestID") && !url.contains("access_token"))
+    override fun isValidRedirectUrl(url: String): Boolean {
+        val lower = url.lowercase()
+        if (lower.contains("/simkl") || lower.contains("simkl")) return true
+        if (lower.contains("joyflix.fun") && lower.contains("code=") && !lower.contains("requestid") && !lower.contains("mal") && !lower.contains("access_token")) {
+            return true
+        }
+        return false
+    }
     override val hasOAuth2 = true
     override val hasPin = true
     override var requireLibraryRefresh = true
@@ -1111,52 +1117,25 @@ class SimklApi : SyncAPI() {
     ): Array<MediaObject>? {
         if (serviceMap.isEmpty()) return emptyArray()
         val currentAuth = auth ?: AccountManager.cachedAccounts[idPrefix]?.firstOrNull() ?: AccountManager.accounts(idPrefix).firstOrNull()
-        val headers = currentAuth?.token?.let { getHeaders(it) } ?: mapOf("simkl-api-key" to CLIENT_ID)
         return app.get(
             "$mainUrl/search/id",
             params = mapOf("client_id" to CLIENT_ID) + serviceMap.map { (service, id) ->
                 service.originalName to id
-            },
-            headers = headers
+            }
         ).parsedSafe<Array<MediaObject>>()
     }
 
     override suspend fun search(auth: AuthData?, query: String): List<SyncAPI.SyncSearchResult>? {
-        val currentAuth = auth ?: AccountManager.cachedAccounts[idPrefix]?.firstOrNull() ?: AccountManager.accounts(idPrefix).firstOrNull()
-        val headers = currentAuth?.token?.let { getHeaders(it) } ?: mapOf("simkl-api-key" to CLIENT_ID)
         return app.get(
             "$mainUrl/search/",
-            params = mapOf("client_id" to CLIENT_ID, "q" to query),
-            headers = headers
+            params = mapOf("client_id" to CLIENT_ID, "q" to query)
         ).parsedSafe<Array<MediaObject>>()?.mapNotNull { it.toSyncSearchResult() }
     }
 
-    private fun generateCodeVerifier(): String {
-        val secureRandom = SecureRandom()
-        val code = ByteArray(32)
-        secureRandom.nextBytes(code)
-        return Base64.encodeToString(
-            code,
-            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
-        )
-    }
-
-    private fun generateCodeChallenge(verifier: String): String {
-        val bytes = verifier.toByteArray(Charsets.US_ASCII)
-        val md = MessageDigest.getInstance("SHA-256")
-        val digest = md.digest(bytes)
-        return Base64.encodeToString(
-            digest,
-            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
-        )
-    }
-
     override fun loginRequest(): AuthLoginPage? {
-        val lastLoginState = BigInteger(130, SecureRandom()).toString(32)
-        val codeVerifier = generateCodeVerifier()
-        val codeChallenge = generateCodeChallenge(codeVerifier)
-        val url = "https://simkl.com/oauth2/authorize?response_type=code&client_id=$CLIENT_ID&redirect_uri=$SIMKL_REDIRECT_URI&scope=media:read%20media:write&state=$lastLoginState&code_challenge=$codeChallenge&code_challenge_method=S256"
-        val payload = "$lastLoginState::$codeVerifier"
+        val lastLoginState = "simkl_" + BigInteger(130, SecureRandom()).toString(32)
+        val url = "https://simkl.com/oauth/authorize?response_type=code&client_id=$CLIENT_ID&redirect_uri=$SIMKL_REDIRECT_URI&state=$lastLoginState"
+        val payload = lastLoginState
         setKey("oauth_payload_$idPrefix", payload)
         return AuthLoginPage(
             url = url,
@@ -1292,41 +1271,24 @@ class SimklApi : SyncAPI() {
     }
 
     override suspend fun pinRequest(): AuthPinData? {
-        val pinAuthResp = app.post(
-            "$mainUrl/oauth2/device",
-            data = mapOf(
-                "client_id" to CLIENT_ID,
-                "scope" to "media:read media:write"
-            )
+        val pinAuthResp = app.get(
+            "$mainUrl/oauth/pin?client_id=$CLIENT_ID&redirect_uri=$SIMKL_REDIRECT_URI"
         ).parsedSafe<PinAuthResponse>() ?: run {
             app.get(
-                "$mainUrl/oauth/pin?client_id=$CLIENT_ID&redirect_uri=$SIMKL_REDIRECT_URI"
+                "$mainUrl/oauth/pin?client_id=$CLIENT_ID&redirect_uri=$APP_STRING://$redirectUrlIdentifier"
             ).parsedSafe<PinAuthResponse>()
         } ?: return null
 
         return AuthPinData(
             deviceCode = pinAuthResp.deviceCode,
             userCode = pinAuthResp.userCode,
-            verificationUrl = pinAuthResp.verificationUriComplete ?: pinAuthResp.verificationUri ?: pinAuthResp.verificationUrl ?: "https://simkl.com/pin",
+            verificationUrl = pinAuthResp.verificationUrl ?: pinAuthResp.verificationUri ?: "https://simkl.com/pin",
             expiresIn = pinAuthResp.expiresIn ?: 900,
             interval = pinAuthResp.interval ?: 5,
         )
     }
 
     override suspend fun login(payload: AuthPinData): AuthToken? {
-        val resp = app.post(
-            "$mainUrl/oauth2/token",
-            data = mapOf(
-                "grant_type" to "urn:ietf:params:oauth:grant-type:device_code",
-                "client_id" to CLIENT_ID,
-                "device_code" to payload.deviceCode
-            )
-        ).parsedSafe<TokenResponse>()
-        if (resp?.accessToken != null) {
-            return AuthToken(
-                accessToken = resp.accessToken,
-            )
-        }
         val pinAuthResp = app.get(
             "$mainUrl/oauth/pin/${payload.userCode}?client_id=$CLIENT_ID"
         ).parsedSafe<PinExchangeResponse>() ?: return null
@@ -1339,36 +1301,45 @@ class SimklApi : SyncAPI() {
         val sanitizer = splitRedirectUrl(redirectUrl)
         val state = sanitizer["state"] ?: redirectUrl.toUri().getQueryParameter("state")
         val savedPayload = payload ?: getKey<String>("oauth_payload_$idPrefix")
-        val expectedState = savedPayload?.substringBefore("::")
-        val codeVerifier = savedPayload?.substringAfter("::")
-        // Ensure consistent state
-        if (state.isNullOrEmpty() || (expectedState != null && state != expectedState)) return null
+        if (state != null && savedPayload != null && state != savedPayload && !state.contains(savedPayload) && !savedPayload.contains(state)) {
+            if (state.contains("RequestID") || state.contains("anilist")) return null
+        }
 
         val code = sanitizer["code"] ?: redirectUrl.toUri().getQueryParameter("code") ?: return null
-        val usedRedirectUri = SIMKL_REDIRECT_URI
-        val params = mutableMapOf(
-            "grant_type" to "authorization_code",
-            "client_id" to CLIENT_ID,
-            "code" to code,
-            "redirect_uri" to usedRedirectUri,
-        )
-        if (!codeVerifier.isNullOrEmpty() && codeVerifier != savedPayload) {
-            params["code_verifier"] = codeVerifier
-        }
-        if (CLIENT_SECRET.isNotBlank()) {
-            params["client_secret"] = CLIENT_SECRET
+
+        // 1. Official TokenRequest JSON
+        var tokenResponse = app.post(
+            "$mainUrl/oauth/token", json = TokenRequest(code)
+        ).parsedSafe<TokenResponse>()
+
+        // 2. Form data with official redirect_uri
+        if (tokenResponse?.accessToken == null) {
+            tokenResponse = app.post(
+                "$mainUrl/oauth/token",
+                data = mapOf(
+                    "code" to code,
+                    "client_id" to CLIENT_ID,
+                    "grant_type" to "authorization_code",
+                    "redirect_uri" to "$APP_STRING://simkl"
+                )
+            ).parsedSafe<TokenResponse>()
         }
 
-        val tokenResponse = app.post(
-            "$mainUrl/oauth2/token", data = params
-        ).parsedSafe<TokenResponse>() ?: run {
-            app.post(
-                "$mainUrl/oauth2/token", json = TokenRequest(code, redirectUri = usedRedirectUri)
+        // 3. Form data with joyflix.fun redirect_uri
+        if (tokenResponse?.accessToken == null) {
+            tokenResponse = app.post(
+                "$mainUrl/oauth/token",
+                data = mapOf(
+                    "code" to code,
+                    "client_id" to CLIENT_ID,
+                    "grant_type" to "authorization_code",
+                    "redirect_uri" to SIMKL_REDIRECT_URI
+                )
             ).parsedSafe<TokenResponse>()
-        } ?: return null
+        }
 
         return AuthToken(
-            accessToken = tokenResponse.accessToken,
+            accessToken = tokenResponse?.accessToken ?: return null,
         )
     }
 

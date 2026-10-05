@@ -699,7 +699,16 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
             homeMasterAdapter = HomeParentItemAdapterPreview(
                 homeViewModel, accountViewModel
             )
+            homeMasterRecycler.itemAnimator = null
             homeMasterRecycler.setHasFixedSize(true)
+            val currentData = (homeViewModel.page.value as? Resource.Success)?.value
+            if (!currentData.isNullOrEmpty()) {
+                homeMasterAdapter?.submitList(currentData.values.map {
+                    it.copy(
+                        list = it.list.copy(list = it.list.list.toMutableList())
+                    )
+                })
+            }
             homeMasterRecycler.adapter = homeMasterAdapter
             homeMasterRecycler.setRecycledViewPool(ParentItemAdapter.sharedPool)
             homeApiFab.isGone = true
@@ -846,18 +855,23 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
                 when (data) {
                     is Resource.Success -> {
                         val d = data.value
+                        val count = (homeMasterRecycler.adapter as? ParentItemAdapter)?.itemCount ?: 0
                         if (d.isEmpty()) {
                             if (PluginManager.isSyncingPlugins || !PluginManager.loadedOnlinePlugins) {
-                                homeLoadingShimmer.startShimmer()
-                                homeLoading.isVisible = true
-                                homeLoadingError.isVisible = false
-                                homeMasterRecycler.isInvisible = true
+                                if (count <= 1) {
+                                    homeLoadingShimmer.startShimmer()
+                                    homeLoading.isVisible = true
+                                    homeLoadingError.isVisible = false
+                                    homeMasterRecycler.isInvisible = true
+                                }
                             } else {
-                                homeLoadingShimmer.stopShimmer()
-                                homeLoading.isVisible = false
-                                homeLoadingError.isVisible = true
-                                homeMasterRecycler.isInvisible = true
-                                resultErrorText.text = getString(R.string.no_data)
+                                if (count <= 1) {
+                                    homeLoadingShimmer.stopShimmer()
+                                    homeLoading.isVisible = false
+                                    homeLoadingError.isVisible = true
+                                    homeMasterRecycler.isInvisible = true
+                                    resultErrorText.text = getString(R.string.no_data)
+                                }
                             }
                             return@observe
                         }
@@ -901,6 +915,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
                     }
                     //Open browser directly, without a menu.
                     is Resource.Failure -> {
+                        val count = (homeMasterRecycler.adapter as? ParentItemAdapter)?.itemCount ?: 0
                         if (data.errorString.contains("cancel", ignoreCase = true) ||
                             data.errorString.contains("StandaloneCoroutine", ignoreCase = true) ||
                             data.errorString.contains("empty", ignoreCase = true) ||
@@ -908,62 +923,69 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
                             PluginManager.isSyncingPlugins ||
                             !PluginManager.loadedOnlinePlugins
                         ) {
-                            homeLoadingShimmer.startShimmer()
-                            homeLoading.isVisible = true
-                            homeLoadingError.isVisible = false
-                            homeMasterRecycler.isInvisible = true
+                            if (count <= 1) {
+                                homeLoadingShimmer.startShimmer()
+                                homeLoading.isVisible = true
+                                homeLoadingError.isVisible = false
+                                homeMasterRecycler.isInvisible = true
+                            }
                             return@observe
                         }
 
-                        homeLoadingShimmer.stopShimmer()
-                        homeReloadConnectionerror.setOnClickListener(apiChangeClickListener)
-                        homeReloadConnectionOpenInBrowser.setOnClickListener {
-                            val currentApi = currentApiName?.let { getApiFromNameNull(it) }
-                                ?: homeViewModel.apiName.value?.let { getApiFromNameNull(it) }
-                            val mainUrl = currentApi?.mainUrl
-                            if (!mainUrl.isNullOrBlank()) {
-                                context?.openBrowser(mainUrl)
+                        if (count <= 1) {
+                            homeLoadingShimmer.stopShimmer()
+                            homeReloadConnectionerror.setOnClickListener(apiChangeClickListener)
+                            homeReloadConnectionOpenInBrowser.setOnClickListener {
+                                val currentApi = currentApiName?.let { getApiFromNameNull(it) }
+                                    ?: homeViewModel.apiName.value?.let { getApiFromNameNull(it) }
+                                val mainUrl = currentApi?.mainUrl
+                                if (!mainUrl.isNullOrBlank()) {
+                                    context?.openBrowser(mainUrl)
+                                }
                             }
-                        }
 
-                        homeLoading.isVisible = false
-                        homeLoadingError.isVisible = true
-                        homeMasterRecycler.isInvisible = true
+                            homeLoading.isVisible = false
+                            homeLoadingError.isVisible = true
+                            homeMasterRecycler.isInvisible = true
 
-                        val hasNoNetworkConnection = context?.isNetworkAvailable() == false
-                        val isNetworkError = data.isNetworkError
+                            val hasNoNetworkConnection = context?.isNetworkAvailable() == false
+                            val isNetworkError = data.isNetworkError
 
-                        // Show the downloads button if we have any sort of network shenanigans
-                        homeReloadConnectionGoToDownloads.isVisible =
-                            hasNoNetworkConnection || isNetworkError
+                            // Show the downloads button if we have any sort of network shenanigans
+                            homeReloadConnectionGoToDownloads.isVisible =
+                                hasNoNetworkConnection || isNetworkError
 
-                        // Only hide the open in browser button if we know this is not network shenanigans related to cs3
-                        homeReloadConnectionOpenInBrowser.isGone = hasNoNetworkConnection
+                            // Only hide the open in browser button if we know this is not network shenanigans related to cs3
+                            homeReloadConnectionOpenInBrowser.isGone = hasNoNetworkConnection
 
-                        resultErrorText.text = if (hasNoNetworkConnection) {
-                            getString(R.string.no_internet_connection)
-                        } else {
-                            data.errorString
-                        }
+                            resultErrorText.text = if (hasNoNetworkConnection) {
+                                getString(R.string.no_internet_connection)
+                            } else {
+                                data.errorString
+                            }
 
-                        homeReloadConnectionGoToDownloads.setOnClickListener {
-                            activity.navigate(R.id.navigation_downloads)
-                        }
+                            homeReloadConnectionGoToDownloads.setOnClickListener {
+                                activity.navigate(R.id.navigation_downloads)
+                            }
 
-                        (homeMasterRecycler.adapter as? ParentItemAdapter)?.apply {
-                            submitList(null)
-                            clearState()
+                            (homeMasterRecycler.adapter as? ParentItemAdapter)?.apply {
+                                submitList(null)
+                                clearState()
+                            }
                         }
                     }
 
                     is Resource.Loading -> {
-                        homeLoadingShimmer.startShimmer()
-                        homeLoading.isVisible = true
-                        homeLoadingError.isVisible = false
-                        homeMasterRecycler.isInvisible = true
-                        (homeMasterRecycler.adapter as? ParentItemAdapter)?.apply {
-                            submitList(null)
-                            clearState()
+                        val count = (homeMasterRecycler.adapter as? ParentItemAdapter)?.itemCount ?: 0
+                        if (count <= 1) {
+                            homeLoadingShimmer.startShimmer()
+                            homeLoading.isVisible = true
+                            homeLoadingError.isVisible = false
+                            homeMasterRecycler.isInvisible = true
+                            (homeMasterRecycler.adapter as? ParentItemAdapter)?.apply {
+                                submitList(null)
+                                clearState()
+                            }
                         }
                         //home_loaded?.isVisible = false
                     }
@@ -1002,11 +1024,14 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
                 homeMasterRecycler.isVisible = true
             }
         } else {
-            binding.apply {
-                homeLoadingShimmer.startShimmer()
-                homeLoading.isVisible = true
-                homeLoadingError.isVisible = false
-                homeMasterRecycler.isInvisible = true
+            val count = homeMasterAdapter?.itemCount ?: 0
+            if (count <= 1) {
+                binding.apply {
+                    homeLoadingShimmer.startShimmer()
+                    homeLoading.isVisible = true
+                    homeLoadingError.isVisible = false
+                    homeMasterRecycler.isInvisible = true
+                }
             }
             homeViewModel.loadAndCancel(DataStoreHelper.currentHomePage, false)
         }

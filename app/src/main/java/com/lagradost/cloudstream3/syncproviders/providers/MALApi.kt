@@ -142,6 +142,32 @@ class MALApi : SyncAPI() {
             }
         }
 
+        // 5. Try with joyflixapp://mallogin
+        if (tokenResponse == null) {
+            try {
+                tokenResponse = app.post(
+                    "$mainUrl/v1/oauth2/token",
+                    data = if (secret.isNotBlank()) baseParams + ("client_secret" to secret) + ("redirect_uri" to "joyflixapp://mallogin")
+                    else baseParams + ("redirect_uri" to "joyflixapp://mallogin")
+                ).parsedSafe<ResponseToken>()
+            } catch (t: Throwable) {
+                logError(t)
+            }
+        }
+
+        // 6. Try with https://joyflix.fun (no trailing slash)
+        if (tokenResponse == null) {
+            try {
+                tokenResponse = app.post(
+                    "$mainUrl/v1/oauth2/token",
+                    data = if (secret.isNotBlank()) baseParams + ("client_secret" to secret) + ("redirect_uri" to "https://joyflix.fun")
+                    else baseParams + ("redirect_uri" to "https://joyflix.fun")
+                ).parsedSafe<ResponseToken>()
+            } catch (t: Throwable) {
+                logError(t)
+            }
+        }
+
         val token = tokenResponse ?: return null
         return AuthToken(
             accessTokenLifetime = APIHolder.unixTime + token.expiresIn.toLong(),
@@ -430,7 +456,7 @@ class MALApi : SyncAPI() {
         val codeVerifier = generateCodeVerifier()
         val requestId = ++requestIdCounter
         val codeChallenge = codeVerifier
-        val request = "$mainUrl/v1/oauth2/authorize?response_type=code&client_id=$key&code_challenge=$codeChallenge&code_challenge_method=plain&state=RequestID$requestId"
+        val request = "$mainUrl/v1/oauth2/authorize?response_type=code&client_id=$key&code_challenge=$codeChallenge&state=RequestID$requestId"
         val payload = Payload(requestId, codeVerifier).toJson()
         setKey("oauth_payload_$idPrefix", payload)
         return AuthLoginPage(

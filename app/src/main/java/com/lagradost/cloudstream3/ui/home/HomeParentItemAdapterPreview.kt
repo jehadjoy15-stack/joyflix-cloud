@@ -673,7 +673,9 @@ class HomeParentItemAdapterPreview(
                     params.height = 0
                     layoutParams = params
                 }
-            } else fixPaddingStatusbarView(homeNonePadding)
+            } else if (previewAdapter.itemCount == 0) {
+                fixPaddingStatusbarView(homeNonePadding)
+            }
 
             when (preview) {
                 is Resource.Success -> {
@@ -707,13 +709,15 @@ class HomeParentItemAdapterPreview(
                 }
 
                 else -> {
-                    previewAdapter.submitList(listOf())
-                    previewViewpager.setCurrentItem(0, false)
-                    previewViewpager.isVisible = false
-                    previewViewpagerText.isVisible = false
-                    alternativeAccountPadding?.isVisible = true
-                    (binding as? FragmentHomeHeadTvBinding)?.apply {
-                        homePreviewInfoBtt.isVisible = false
+                    if (previewAdapter.itemCount == 0) {
+                        previewAdapter.submitList(listOf())
+                        previewViewpager.setCurrentItem(0, false)
+                        previewViewpager.isVisible = false
+                        previewViewpagerText.isVisible = false
+                        alternativeAccountPadding?.isVisible = true
+                        (binding as? FragmentHomeHeadTvBinding)?.apply {
+                            homePreviewInfoBtt.isVisible = false
+                        }
                     }
                     //previewHeader.isVisible = false
                 }

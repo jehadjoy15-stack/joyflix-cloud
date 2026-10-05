@@ -139,11 +139,11 @@ abstract class AuthRepo(open val api: AuthAPI) {
         )
 
         val currentAccounts = AccountManager.accounts(idPrefix)
-        if (currentAccounts.any { it.user.id == newAccount.user.id }) {
-            throw ErrorLoadingException("Already logged into this account")
+        val newAccounts = if (currentAccounts.any { it.user.id == newAccount.user.id }) {
+            currentAccounts.map { if (it.user.id == newAccount.user.id) newAccount else it }.toTypedArray()
+        } else {
+            currentAccounts + newAccount
         }
-
-        val newAccounts = currentAccounts + newAccount
         AccountManager.updateAccounts(idPrefix, newAccounts)
         AccountManager.updateAccountsId(idPrefix, user.id)
         if (this is SyncRepo) {
