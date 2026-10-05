@@ -72,6 +72,7 @@ import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.mvvm.observe
 import com.lagradost.cloudstream3.mvvm.observeNullable
 import com.lagradost.cloudstream3.mvvm.safe
+import com.lagradost.cloudstream3.ui.SyncWatchType
 import com.lagradost.cloudstream3.subtitles.AbstractSubtitleEntities
 import com.lagradost.cloudstream3.subtitles.AbstractSubtitleEntities.SubtitleSearch
 import com.lagradost.cloudstream3.syncproviders.AccountManager.Companion.subtitleProviders
@@ -1828,17 +1829,22 @@ class GeneratorPlayer : FullScreenPlayer() {
         var isOpVisible = false
         when (val meta = currentMeta) {
             is ResultEpisode -> {
-                if (percentage >= UPDATE_SYNC_PROGRESS_PERCENTAGE && (maxEpisodeSet
-                        ?: -1) < meta.episode
-                ) {
-                    context?.let { ctx ->
-                        val settingsManager = PreferenceManager.getDefaultSharedPreferences(ctx)
-                        if (settingsManager.getBoolean(
-                                ctx.getString(R.string.episode_sync_enabled_key), true
-                            )
-                        ) {
-                            maxEpisodeSet = meta.episode
-                            sync.modifyMaxEpisode(meta.totalEpisodeIndex ?: meta.episode)
+                if (percentage >= UPDATE_SYNC_PROGRESS_PERCENTAGE) {
+                    if (meta.tvType == TvType.Movie) {
+                        if (maxEpisodeSet != 1) {
+                            maxEpisodeSet = 1
+                            sync.setAndPublishStatus(SyncWatchType.COMPLETED, meta.headerName ?: meta.name)
+                        }
+                    } else if ((maxEpisodeSet ?: -1) < meta.episode) {
+                        context?.let { ctx ->
+                            val settingsManager = PreferenceManager.getDefaultSharedPreferences(ctx)
+                            if (settingsManager.getBoolean(
+                                    ctx.getString(R.string.episode_sync_enabled_key), true
+                                )
+                            ) {
+                                maxEpisodeSet = meta.episode
+                                sync.modifyMaxEpisode(meta.totalEpisodeIndex ?: meta.episode)
+                            }
                         }
                     }
                 }

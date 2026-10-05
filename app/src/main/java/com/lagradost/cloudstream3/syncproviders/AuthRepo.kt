@@ -103,10 +103,29 @@ abstract class AuthRepo(open val api: AuthAPI) {
         AccountManager.updateAccounts(idPrefix, newAccounts)
     }
 
-    fun authData(): AuthData? = synchronized(AccountManager.cachedAccountIds) {
-        AccountManager.cachedAccountIds[idPrefix]?.let { id ->
-            AccountManager.cachedAccounts[idPrefix]?.firstOrNull { data -> data.user.id == id }
+    fun authData(): AuthData? {
+        val currentAccounts = synchronized(AccountManager.cachedAccounts) {
+            AccountManager.cachedAccounts[idPrefix]?.takeIf { it.isNotEmpty() }
+        } ?: AccountManager.accounts(idPrefix).takeIf { it.isNotEmpty() }
+        ?: return null
+
+        val selectedId = synchronized(AccountManager.cachedAccountIds) {
+            AccountManager.cachedAccountIds[idPrefix]
         }
+
+        val account = if (selectedId != null && selectedId != NONE_ID) {
+            currentAccounts.firstOrNull { data -> data.user.id == selectedId } ?: currentAccounts.firstOrNull()
+        } else {
+            currentAccounts.firstOrNull()
+        }
+
+        if (account != null && selectedId != account.user.id) {
+            synchronized(AccountManager.cachedAccountIds) {
+                AccountManager.cachedAccountIds[idPrefix] = account.user.id
+            }
+        }
+
+        return account
     }
 
     fun authToken(): AuthToken? = authData()?.token

@@ -11,6 +11,7 @@ import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.ShowStatus
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.app
+import com.lagradost.cloudstream3.syncproviders.AccountManager
 import com.lagradost.cloudstream3.syncproviders.AuthData
 import com.lagradost.cloudstream3.syncproviders.AuthLoginPage
 import com.lagradost.cloudstream3.syncproviders.AuthToken
@@ -186,8 +187,9 @@ class MALApi : SyncAPI() {
         id: String,
         newStatus: SyncAPI.AbstractSyncStatus
     ): Boolean {
+        val currentToken = auth?.token ?: AccountManager.cachedAccounts[idPrefix]?.firstOrNull()?.token ?: AccountManager.accounts(idPrefix).firstOrNull()?.token ?: return false
         return setScoreRequest(
-            auth?.token ?: return false,
+            currentToken,
             id.toIntOrNull() ?: return false,
             fromIntToAnimeStatus(newStatus.status),
             newStatus.score?.toInt(10),

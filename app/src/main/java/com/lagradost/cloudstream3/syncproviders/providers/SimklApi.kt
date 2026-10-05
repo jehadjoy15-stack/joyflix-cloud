@@ -545,31 +545,59 @@ class SimklApi : SyncAPI() {
                             val newStatus = SimklListStatusType.entries.firstOrNull {
                                 it.value == setStatus
                             }?.originalName ?: SimklListStatusType.Watching.originalName!!
+                            val watchedTime = if (newStatus == SimklListStatusType.Completed.originalName) time else null
                             val statusObj = StatusMediaObject(
                                 null,
                                 null,
                                 ids,
                                 newStatus,
+                                watchedTime,
                             )
-                            val statusReq = when (mediaType?.lowercase()) {
-                                "movie" -> StatusRequest(movies = listOf(statusObj))
-                                "anime" -> StatusRequest(anime = listOf(statusObj), shows = listOf(statusObj))
-                                "tv", "show", "series" -> StatusRequest(shows = listOf(statusObj))
-                                else -> StatusRequest(shows = listOf(statusObj), movies = listOf(statusObj))
-                            }
-                            var success = try {
-                                app.post(
-                                    "${this.url}/sync/add-to-list",
-                                    json = statusReq,
-                                    headers = headers,
-                                ).isSuccessful
-                            } catch (t: Throwable) {
-                                logError(t)
-                                false
-                            }
-                            if (!success) {
-                                // Fallback: try individual lists if composite failed
-                                if (mediaType?.lowercase() != "movie") {
+                            val type = mediaType?.lowercase()
+                            var success = false
+                            if (type == "movie") {
+                                success = try {
+                                    app.post(
+                                        "${this.url}/sync/add-to-list",
+                                        json = StatusRequest(movies = listOf(statusObj)),
+                                        headers = headers,
+                                    ).isSuccessful
+                                } catch (t: Throwable) {
+                                    logError(t)
+                                    false
+                                }
+                            } else if (type == "anime") {
+                                success = try {
+                                    app.post(
+                                        "${this.url}/sync/add-to-list",
+                                        json = StatusRequest(anime = listOf(statusObj)),
+                                        headers = headers,
+                                    ).isSuccessful
+                                } catch (t: Throwable) {
+                                    logError(t)
+                                    false
+                                }
+                            } else if (type in listOf("tv", "show", "series")) {
+                                success = try {
+                                    app.post(
+                                        "${this.url}/sync/add-to-list",
+                                        json = StatusRequest(shows = listOf(statusObj)),
+                                        headers = headers,
+                                    ).isSuccessful
+                                } catch (t: Throwable) {
+                                    logError(t)
+                                    false
+                                }
+                            } else {
+                                // Unknown/fallback: Try movie first, then show, then anime
+                                try {
+                                    success = app.post(
+                                        "${this.url}/sync/add-to-list",
+                                        json = StatusRequest(movies = listOf(statusObj)),
+                                        headers = headers,
+                                    ).isSuccessful
+                                } catch (_: Throwable) {}
+                                if (!success) {
                                     try {
                                         success = app.post(
                                             "${this.url}/sync/add-to-list",
@@ -582,7 +610,7 @@ class SimklApi : SyncAPI() {
                                     try {
                                         success = app.post(
                                             "${this.url}/sync/add-to-list",
-                                            json = StatusRequest(movies = listOf(statusObj)),
+                                            json = StatusRequest(anime = listOf(statusObj)),
                                             headers = headers,
                                         ).isSuccessful
                                     } catch (_: Throwable) {}
@@ -743,7 +771,7 @@ class SimklApi : SyncAPI() {
             @JsonProperty("year") @SerialName("year") val year: Int? = null,
             @JsonProperty("ids") @SerialName("ids") val ids: MediaObject.Ids? = null,
             @JsonProperty("to") @SerialName("to") val to: String,
-            @JsonProperty("watched_at") @SerialName("watched_at") val watchedAt: String? = getDateTime(APIHolder.unixTime),
+            @JsonProperty("watched_at") @SerialName("watched_at") val watchedAt: String? = null,
         ) {
             object Serializer : NonEmptySerializer<StatusMediaObject>(StatusMediaObject.generatedSerializer())
         }
@@ -1150,18 +1178,29 @@ class SimklApi : SyncAPI() {
     ): Array<MediaObject>? {
         if (serviceMap.isEmpty()) return emptyArray()
         val currentAuth = auth ?: AccountManager.cachedAccounts[idPrefix]?.firstOrNull() ?: AccountManager.accounts(idPrefix).firstOrNull()
+        val headers = mutableMapOf("simkl-api-key" to CLIENT_ID)
+        currentAuth?.token?.accessToken?.let {
+            headers["Authorization"] = "Bearer $it"
+        }
         return app.get(
             "$mainUrl/search/id",
             params = mapOf("client_id" to CLIENT_ID) + serviceMap.map { (service, id) ->
                 service.originalName to id
-            }
+            },
+            headers = headers
         ).parsedSafe<Array<MediaObject>>()
     }
 
     override suspend fun search(auth: AuthData?, query: String): List<SyncAPI.SyncSearchResult>? {
+        val currentAuth = auth ?: AccountManager.cachedAccounts[idPrefix]?.firstOrNull() ?: AccountManager.accounts(idPrefix).firstOrNull()
+        val headers = mutableMapOf("simkl-api-key" to CLIENT_ID)
+        currentAuth?.token?.accessToken?.let {
+            headers["Authorization"] = "Bearer $it"
+        }
         return app.get(
             "$mainUrl/search/",
-            params = mapOf("client_id" to CLIENT_ID, "q" to query)
+            params = mapOf("client_id" to CLIENT_ID, "q" to query),
+            headers = headers
         ).parsedSafe<Array<MediaObject>>()?.mapNotNull { it.toSyncSearchResult() }
     }
 

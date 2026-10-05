@@ -16,6 +16,7 @@ import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.mvvm.logError
+import com.lagradost.cloudstream3.syncproviders.AccountManager
 import com.lagradost.cloudstream3.syncproviders.AuthData
 import com.lagradost.cloudstream3.syncproviders.AuthLoginPage
 import com.lagradost.cloudstream3.syncproviders.AuthToken
@@ -179,8 +180,9 @@ class AniListApi : SyncAPI() {
         id: String,
         newStatus: AbstractSyncStatus
     ): Boolean {
+        val currentAuth = auth ?: AccountManager.cachedAccounts[idPrefix]?.firstOrNull() ?: AccountManager.accounts(idPrefix).firstOrNull() ?: return false
         return postDataAboutId(
-            auth ?: return false,
+            currentAuth,
             id.toIntOrNull() ?: return false,
             fromIntToAnimeStatus(newStatus.status.internalId),
             newStatus.score,
@@ -794,13 +796,19 @@ class AniListApi : SyncAPI() {
                     }
                 """
             } else {
-                """mutation (${'$'}id: Int = $id, ${'$'}status: MediaListStatus = ${
-                    aniListStatusString[maxOf(
-                        0,
-                        type.value
-                    )]
-                }, ${if (score != null) "${'$'}scoreRaw: Int = ${score.toInt(100)}" else ""} , ${if (progress != null) "${'$'}progress: Int = $progress" else ""}) {
-                    SaveMediaListEntry (mediaId: ${'$'}id, status: ${'$'}status, scoreRaw: ${'$'}scoreRaw, progress: ${'$'}progress) {
+                val statusStr = aniListStatusString[maxOf(0, type.value)]
+                val mutationArgs = mutableListOf("${'$'}id: Int = $id", "${'$'}status: MediaListStatus = $statusStr")
+                val entryArgs = mutableListOf("mediaId: ${'$'}id", "status: ${'$'}status")
+                if (score != null) {
+                    mutationArgs.add("${'$'}scoreRaw: Int = ${score.toInt(100)}")
+                    entryArgs.add("scoreRaw: ${'$'}scoreRaw")
+                }
+                if (progress != null) {
+                    mutationArgs.add("${'$'}progress: Int = $progress")
+                    entryArgs.add("progress: ${'$'}progress")
+                }
+                """mutation (${mutationArgs.joinToString(", ")}) {
+                    SaveMediaListEntry (${entryArgs.joinToString(", ")}) {
                         id
                         status
                         progress

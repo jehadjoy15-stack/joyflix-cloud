@@ -243,6 +243,8 @@ class SyncViewModel : ViewModel() {
                 }
             }
         }
+        // Also broadcast to any logged-in repos that were not attached in local syncs
+        SyncUtil.syncStatus(statusType, title, syncData, syncs)
         updateUserData()
     }
 
@@ -316,8 +318,11 @@ class SyncViewModel : ViewModel() {
         modifyData { status ->
             status.watchedEpisodes = maxOf(
                 episodeNum,
-                status.watchedEpisodes ?: return@modifyData null
+                status.watchedEpisodes ?: 0
             )
+            if (status.status == SyncWatchType.NONE) {
+                status.status = SyncWatchType.WATCHING
+            }
             status
         }
     }
@@ -327,8 +332,14 @@ class SyncViewModel : ViewModel() {
         ioSafe {
             syncs.amap { (prefix, id) ->
                 repos.firstOrNull { it.idPrefix == prefix }?.let { repo ->
-                    val result =
-                        update(repo.status(id).getOrNull() ?: return@let null) ?: return@let null
+                    val currentStatus = repo.status(id).getOrNull() ?: SyncAPI.SyncStatus(
+                        status = SyncWatchType.WATCHING,
+                        score = null,
+                        watchedEpisodes = 0,
+                        isFavorite = null,
+                        maxEpisodes = null
+                    )
+                    val result = update(currentStatus) ?: return@let null
                     Log.i(TAG, "modifyData ${repo.name} => $result")
                     repo.updateStatus(id, result)
                 }
