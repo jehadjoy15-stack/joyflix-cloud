@@ -6,6 +6,10 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.os.Build
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
@@ -14,6 +18,7 @@ import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import com.lagradost.api.setContext
 import com.lagradost.cloudstream3.BuildConfig
+import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.mvvm.safe
 import com.lagradost.cloudstream3.mvvm.safeAsync
 import com.lagradost.cloudstream3.plugins.PluginManager
@@ -36,6 +41,7 @@ import java.io.FileNotFoundException
 import java.io.PrintStream
 import java.lang.ref.WeakReference
 import java.util.Locale
+import java.util.concurrent.TimeoutException
 import kotlin.concurrent.thread
 import kotlin.system.exitProcess
 
@@ -45,6 +51,16 @@ class ExceptionHandler(
 ) : Thread.UncaughtExceptionHandler {
 
     override fun uncaughtException(thread: Thread, error: Throwable) {
+        // 1. Guard against FinalizerWatchdogDaemon TimeoutException (e.g. Amazon Fire TV / low-end Android 7.1 devices)
+        if (thread.name == "FinalizerWatchdogDaemon" && (error is TimeoutException || error.cause is TimeoutException)) {
+            return
+        }
+
+        // 2. Guard against WindowManager.BadTokenException (e.g. extension dialogs showing on dead activities)
+        if (error is WindowManager.BadTokenException || error.cause is WindowManager.BadTokenException) {
+            return
+        }
+
         try {
             val threadId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
                 thread.threadId()
@@ -77,11 +93,58 @@ class ExceptionHandler(
 
 class CloudStreamApp : Application(), SingletonImageLoader.Factory {
 
+    private fun stopFinalizerWatchdogDaemon() {
+        try {
+            val clazz = Class.forName("java.lang.Daemons\$FinalizerWatchdogDaemon")
+            val field = clazz.getDeclaredField("INSTANCE")
+            field.isAccessible = true
+            val watchdog = field.get(null)
+            val stopMethod = clazz.superclass?.getDeclaredMethod("stop") ?: clazz.getDeclaredMethod("stop")
+            stopMethod.isAccessible = true
+            stopMethod.invoke(watchdog)
+        } catch (_: Throwable) {
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
-        // If we want to initialize Coil as early as possible, maybe when
-        // loading an image or GIF in a splash screen activity.
-        // buildImageLoader(applicationContext)
+        stopFinalizerWatchdogDaemon()
+
+        // Track foreground activity
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+            override fun onActivityStarted(activity: Activity) {}
+            override fun onActivityResumed(activity: Activity) {
+                currentActivity = WeakReference(activity)
+                setContext(activity)
+            }
+            override fun onActivityPaused(activity: Activity) {}
+            override fun onActivityStopped(activity: Activity) {}
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+            override fun onActivityDestroyed(activity: Activity) {
+                if (currentActivity?.get() == activity) {
+                    currentActivity = null
+                    setContext(context)
+                }
+            }
+        })
+
+        // Main Looper Crash Shield
+        // Catches non-fatal WindowManager.BadTokenException from background WebViews / extension dialogs
+        // without killing the main looper or terminating the app.
+        Handler(Looper.getMainLooper()).post {
+            while (true) {
+                try {
+                    Looper.loop()
+                } catch (t: Throwable) {
+                    if (t is WindowManager.BadTokenException || t.cause is WindowManager.BadTokenException) {
+                        logError(t)
+                        continue
+                    }
+                    Thread.getDefaultUncaughtExceptionHandler()?.uncaughtException(Thread.currentThread(), t)
+                }
+            }
+        }
 
         ExceptionHandler(filesDir.resolve("last_error")) {
             val intent = context!!.packageManager.getLaunchIntentForPackage(context!!.packageName)
@@ -145,9 +208,14 @@ class CloudStreamApp : Application(), SingletonImageLoader.Factory {
 
     companion object {
         var exceptionHandler: ExceptionHandler? = null
+        var currentActivity: WeakReference<Activity>? = null
 
         /** Use to get Activity from Context. */
         tailrec fun Context.getActivity(): Activity? {
+            val foreground = currentActivity?.get()
+            if (foreground != null && !foreground.isFinishing && !foreground.isDestroyed) {
+                return foreground
+            }
             return when (this) {
                 is Activity -> this
                 is ContextWrapper -> baseContext.getActivity()

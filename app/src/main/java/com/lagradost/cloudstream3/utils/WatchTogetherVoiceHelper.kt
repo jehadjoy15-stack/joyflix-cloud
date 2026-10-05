@@ -78,7 +78,7 @@ class WatchTogetherVoiceHelper(private val context: Context) {
             }
         }
         liveChunkRunnable = runnable
-        mainHandler.postDelayed(runnable, 1200L) // Fast 1.2-second live audio packets for ultra-low latency
+        mainHandler.postDelayed(runnable, 2500L) // 2.5-second live audio packets ensure 100% full sentence capture without gaps
     }
 
     @Synchronized
@@ -100,11 +100,18 @@ class WatchTogetherVoiceHelper(private val context: Context) {
         if (!hasMicPermission()) return false
         stopRecording(cancel = true)
 
-        return try {
-            val file = File(context.cacheDir, "wt_rec_${System.currentTimeMillis()}.m4a")
-            currentRecordFile = file
-            recordStartTime = System.currentTimeMillis()
+        val file = File(context.cacheDir, "wt_rec_${System.currentTimeMillis()}.m4a")
+        currentRecordFile = file
+        recordStartTime = System.currentTimeMillis()
 
+        // Prioritize VOICE_RECOGNITION (built-in noise suppression & speech leveling without phone-call muting),
+        // with guaranteed fallback to standard MIC
+        val sourcesToTry = listOf(
+            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            MediaRecorder.AudioSource.MIC
+        )
+
+        for (source in sourcesToTry) {
             val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 MediaRecorder(context)
             } else {
@@ -112,30 +119,30 @@ class WatchTogetherVoiceHelper(private val context: Context) {
                 MediaRecorder()
             }
 
-            recorder.apply {
-                // VOICE_COMMUNICATION enables native Android hardware Noise Suppression (NS),
-                // Acoustic Echo Cancellation (AEC), and Automatic Gain Control (AGC) for crystal clear voice
-                try {
-                    setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
-                } catch (_: Throwable) {
-                    setAudioSource(MediaRecorder.AudioSource.MIC)
+            try {
+                recorder.apply {
+                    setAudioSource(source)
+                    setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                    setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                    setAudioEncodingBitRate(64000)
+                    setAudioSamplingRate(44100)
+                    setAudioChannels(1)
+                    setOutputFile(file.absolutePath)
+                    prepare()
+                    start()
                 }
-                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                setAudioEncodingBitRate(24000)
-                setAudioSamplingRate(16000)
-                setAudioChannels(1)
-                setOutputFile(file.absolutePath)
-                prepare()
-                start()
+                mediaRecorder = recorder
+                return true
+            } catch (t: Throwable) {
+                try {
+                    recorder.release()
+                } catch (_: Throwable) {
+                }
             }
-            mediaRecorder = recorder
-            true
-        } catch (e: Throwable) {
-            logError(e)
-            stopRecording(cancel = true)
-            false
         }
+
+        stopRecording(cancel = true)
+        return false
     }
 
     @Synchronized

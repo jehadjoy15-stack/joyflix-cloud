@@ -20,10 +20,13 @@ import com.lagradost.cloudstream3.syncproviders.SyncIdName
 import com.lagradost.cloudstream3.ui.SyncWatchType
 import com.lagradost.cloudstream3.ui.library.ListSorting
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
+import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.lagradost.cloudstream3.utils.txt
+import com.lagradost.cloudstream3.mvvm.logError
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.format.DateTimeFormatter
@@ -42,8 +45,15 @@ class MALApi : SyncAPI() {
     private val apiUrl = "https://api.myanimelist.net"
     override val hasOAuth2 = true
     override val redirectUrlIdentifier: String? = "mallogin"
-    override fun isValidRedirectUrl(url: String): Boolean =
-        url.contains("/mallogin") || url.contains("mallogin") || (url.contains("joyflix.fun") && url.contains("RequestID")) || (url.contains("RequestID") && !url.contains("/simkl") && !url.contains("/anilist"))
+    override fun isValidRedirectUrl(url: String): Boolean {
+        val lower = url.lowercase()
+        if (lower.contains("/mallogin") || lower.contains("mallogin") || lower.contains("myanimelist")) return true
+        if (url.contains("RequestID", ignoreCase = true)) return true
+        if (lower.contains("joyflix.fun") && lower.contains("code=") && !lower.contains("simkl") && !lower.contains("anilist") && !lower.contains("access_token")) {
+            return true
+        }
+        return false
+    }
     override val mainUrl = "https://myanimelist.net"
     override val icon = R.drawable.mal_logo
     override val syncIdName = SyncIdName.MyAnimeList
@@ -66,30 +76,73 @@ class MALApi : SyncAPI() {
 
     override suspend fun login(redirectUrl: String, payload: String?): AuthToken? {
         val savedPayload = payload ?: getKey<String>("oauth_payload_$idPrefix") ?: return null
-        val payloadData = parseJson<Payload>(savedPayload)
+        val payloadData = tryParseJson<Payload>(savedPayload) ?: return null
         val sanitizer = splitRedirectUrl(redirectUrl)
-        val state = sanitizer["state"] ?: return null
-
-        if (!state.startsWith("RequestID")) {
-            return null
-        }
-
         val currentCode = sanitizer["code"] ?: return null
 
-        val params = mutableMapOf(
+        val state = sanitizer["state"]
+        if (state != null && !state.contains("RequestID", ignoreCase = true) && !state.contains(payloadData.requestId.toString())) {
+            if (state.contains("simkl", ignoreCase = true) || state.contains("anilist", ignoreCase = true)) {
+                return null
+            }
+        }
+
+        val baseParams = mapOf(
             "client_id" to key,
             "code" to currentCode,
             "code_verifier" to payloadData.codeVerifier,
             "grant_type" to "authorization_code",
         )
-        if (secret.isNotBlank()) {
-            params["client_secret"] = secret
+
+        var tokenResponse: ResponseToken? = null
+
+        // 1. Standard PKCE (no client_secret, as expected for Android public clients)
+        try {
+            tokenResponse = app.post(
+                "$mainUrl/v1/oauth2/token",
+                data = baseParams
+            ).parsedSafe<ResponseToken>()
+        } catch (t: Throwable) {
+            logError(t)
         }
 
-        val token = app.post(
-            "$mainUrl/v1/oauth2/token",
-            data = params
-        ).parsed<ResponseToken>()
+        // 2. If standard PKCE failed and secret is configured, try with client_secret
+        if (tokenResponse == null && secret.isNotBlank()) {
+            try {
+                tokenResponse = app.post(
+                    "$mainUrl/v1/oauth2/token",
+                    data = baseParams + ("client_secret" to secret)
+                ).parsedSafe<ResponseToken>()
+            } catch (t: Throwable) {
+                logError(t)
+            }
+        }
+
+        // 3. Try with redirect_uri
+        if (tokenResponse == null) {
+            try {
+                tokenResponse = app.post(
+                    "$mainUrl/v1/oauth2/token",
+                    data = baseParams + ("redirect_uri" to "https://joyflix.fun/")
+                ).parsedSafe<ResponseToken>()
+            } catch (t: Throwable) {
+                logError(t)
+            }
+        }
+
+        // 4. Try with both client_secret and redirect_uri
+        if (tokenResponse == null && secret.isNotBlank()) {
+            try {
+                tokenResponse = app.post(
+                    "$mainUrl/v1/oauth2/token",
+                    data = baseParams + ("client_secret" to secret) + ("redirect_uri" to "https://joyflix.fun/")
+                ).parsedSafe<ResponseToken>()
+            } catch (t: Throwable) {
+                logError(t)
+            }
+        }
+
+        val token = tokenResponse ?: return null
         return AuthToken(
             accessTokenLifetime = APIHolder.unixTime + token.expiresIn.toLong(),
             refreshToken = token.refreshToken,
@@ -365,26 +418,43 @@ class MALApi : SyncAPI() {
         }
     }
 
+    private fun generateCodeVerifier(): String {
+        val allowedChars = ('a'..'z') + ('A'..'Z') + ('0'..'9') + listOf('-', '.', '_', '~')
+        val secureRandom = SecureRandom()
+        return (1..64)
+            .map { allowedChars[secureRandom.nextInt(allowedChars.size)] }
+            .joinToString("")
+    }
+
     override fun loginRequest(): AuthLoginPage? {
         val codeVerifier = generateCodeVerifier()
         val requestId = ++requestIdCounter
         val codeChallenge = codeVerifier
-        val request = "$mainUrl/v1/oauth2/authorize?response_type=code&client_id=$key&code_challenge=$codeChallenge&state=RequestID$requestId"
+        val request = "$mainUrl/v1/oauth2/authorize?response_type=code&client_id=$key&code_challenge=$codeChallenge&code_challenge_method=plain&state=RequestID$requestId"
+        val payload = Payload(requestId, codeVerifier).toJson()
+        setKey("oauth_payload_$idPrefix", payload)
         return AuthLoginPage(
             url = request,
-            payload = Payload(requestId, codeVerifier).toJson(),
+            payload = payload,
         )
     }
 
     override suspend fun refreshToken(token: AuthToken): AuthToken? {
+        val baseParams = mapOf(
+            "client_id" to key,
+            "grant_type" to "refresh_token",
+            "refresh_token" to (token.refreshToken ?: return null),
+        )
         val res = app.post(
             "$mainUrl/v1/oauth2/token",
-            data = mapOf(
-                "client_id" to key,
-                "grant_type" to "refresh_token",
-                "refresh_token" to token.refreshToken!!,
-            )
-        ).parsed<ResponseToken>()
+            data = if (secret.isNotBlank()) baseParams + ("client_secret" to secret) else baseParams
+        ).parsedSafe<ResponseToken>() ?: run {
+            app.post(
+                "$mainUrl/v1/oauth2/token",
+                data = baseParams
+            ).parsedSafe<ResponseToken>()
+        } ?: return null
+
         return AuthToken(
             accessToken = res.accessToken,
             refreshToken = res.refreshToken,

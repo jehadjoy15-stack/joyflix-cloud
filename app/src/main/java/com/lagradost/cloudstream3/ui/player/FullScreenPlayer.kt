@@ -10,7 +10,7 @@ import android.content.DialogInterface
 import android.content.pm.ActivityInfo
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.lagradost.cloudstream3.utils.WatchTogetherVoiceHelper
+import android.view.inputmethod.InputMethodManager
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
@@ -177,7 +177,6 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             }
         }
 
-    private var voiceHelper: WatchTogetherVoiceHelper? = null
 
     /** Checks if any top level dialog is open and showing */
     fun isDialogOpen() =
@@ -245,11 +244,6 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
     override fun onDestroyView() {
         hideChatToastRunnable?.let { playerBinding?.playerChatToastContainer?.removeCallbacks(it) }
         hideChatToastRunnable = null
-        hideVoiceToastRunnable?.let { playerBinding?.playerVoiceToastContainer?.removeCallbacks(it) }
-        hideVoiceToastRunnable = null
-        voiceHelper?.release()
-        voiceHelper = null
-        WatchTogetherManager.setOnNewVoiceListener(null)
         WatchTogetherManager.setOnNewMessageListener(null)
         WatchTogetherManager.setOnRemoteSyncListener(null)
         WatchTogetherManager.setOnRoomClosedListener(null)
@@ -783,7 +777,6 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         WatchTogetherManager.setOnRoomClosedListener {
             activity?.runOnUiThread {
                 if (!isAdded || isDetached) return@runOnUiThread
-                playerBinding?.playerFloatingMicContainer?.isVisible = false
                 playerBinding?.playerChatBtt?.isGone = true
                 showToast(R.string.leave_room)
             }
@@ -799,83 +792,9 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         WatchTogetherManager.setOnNewMessageListener { msg ->
             showChatMessageToast(msg.senderName, msg.text)
         }
-
-        val ctx = context ?: activity
-        if (ctx != null && voiceHelper == null) {
-            voiceHelper = WatchTogetherVoiceHelper(ctx.applicationContext)
-        }
-
-        WatchTogetherManager.setOnNewVoiceListener { voice ->
-            activity?.runOnUiThread {
-                if (!isAdded || isDetached) return@runOnUiThread
-                showVoiceSpeakingToast(voice.senderName)
-                if (!isDuckingVolume) {
-                    originalPlayerVolume = player.getVolume() ?: 1.0f
-                    player.setVolume(0.15f)
-                    isDuckingVolume = true
-                }
-                voiceHelper?.enqueueVoice(
-                    base64Audio = voice.audioBase64,
-                    onStart = {
-                        activity?.runOnUiThread {
-                            if (!isAdded || isDetached) return@runOnUiThread
-                            showVoiceSpeakingToast(voice.senderName)
-                        }
-                    },
-                    onAllComplete = {
-                        activity?.runOnUiThread {
-                            if (!isAdded || isDetached) return@runOnUiThread
-                            if (isDuckingVolume) {
-                                player.setVolume(originalPlayerVolume)
-                                isDuckingVolume = false
-                            }
-                            hideVoiceSpeakingToast()
-                        }
-                    }
-                )
-            }
-        }
     }
 
     private var hideChatToastRunnable: Runnable? = null
-    private var hideVoiceToastRunnable: Runnable? = null
-    private var isDuckingVolume = false
-    private var originalPlayerVolume = 1.0f
-
-    private fun showVoiceSpeakingToast(senderName: String) {
-        val b = playerBinding ?: return
-        activity?.runOnUiThread {
-            if (!isAdded || isDetached) return@runOnUiThread
-            hideVoiceToastRunnable?.let { b.playerVoiceToastContainer.removeCallbacks(it) }
-
-            b.playerVoiceSpeakerName.text = "$senderName: "
-            b.playerVoiceStatusText.setText(R.string.voice_speaking)
-            b.playerVoiceToastContainer.alpha = 0f
-            b.playerVoiceToastContainer.isVisible = true
-            b.playerVoiceToastContainer.animate()
-                .alpha(1f)
-                .setDuration(200)
-                .start()
-        }
-    }
-
-    private fun hideVoiceSpeakingToast() {
-        val b = playerBinding ?: return
-        activity?.runOnUiThread {
-            if (!isAdded || isDetached) return@runOnUiThread
-            val runnable = Runnable {
-                b.playerVoiceToastContainer.animate()
-                    .alpha(0f)
-                    .setDuration(300)
-                    .withEndAction {
-                        b.playerVoiceToastContainer.isVisible = false
-                    }
-                    .start()
-            }
-            hideVoiceToastRunnable = runnable
-            b.playerVoiceToastContainer.post(runnable)
-        }
-    }
 
     private fun showChatMessageToast(senderName: String, text: String) {
         val b = playerBinding ?: return
@@ -911,6 +830,8 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
     private fun toggleChatBar() {
         val b = playerBinding ?: return
         if (b.playerChatBarContainer.isVisible) {
+            val imm = b.root.context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.hideSoftInputFromWindow(b.etPlayerChatInput.windowToken, 0)
             b.playerChatBarContainer.animate().alpha(0f).setDuration(200).withEndAction {
                 b.playerChatBarContainer.isVisible = false
             }.start()
@@ -919,6 +840,8 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             b.playerChatBarContainer.isVisible = true
             b.playerChatBarContainer.animate().alpha(1f).setDuration(200).start()
             b.etPlayerChatInput.requestFocus()
+            val imm = b.root.context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.showSoftInput(b.etPlayerChatInput, InputMethodManager.SHOW_IMPLICIT)
         }
     }
 
@@ -934,146 +857,6 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         }
         b.etPlayerChatInput.setText("")
         WatchTogetherManager.sendMessage(text, senderNick)
-    }
-
-    private var currentDialogVoiceUpdater: ((Boolean) -> Unit)? = null
-
-    private fun updateMicUI(isMicOn: Boolean) {
-        currentDialogVoiceUpdater?.invoke(isMicOn)
-        val b = playerBinding ?: return
-        val activeColor = Color.parseColor("#FF3344")
-        if (isMicOn) {
-            b.btnPlayerChatMic.setColorFilter(activeColor)
-            b.btnPlayerChatMic.setImageResource(R.drawable.ic_baseline_mic_24)
-            b.playerMicBtt.iconTint = ColorStateList.valueOf(activeColor)
-            b.playerMicBtt.setIconResource(R.drawable.ic_baseline_mic_24)
-            b.playerMicBtt.text = getString(R.string.mic_on)
-            b.playerFloatingMic.backgroundTintList = ColorStateList.valueOf(activeColor)
-            b.playerFloatingMic.setImageResource(R.drawable.ic_baseline_mic_24)
-            b.playerFloatingMicContainer.animate().alpha(0.85f).setDuration(150).start()
-        } else {
-            b.btnPlayerChatMic.clearColorFilter()
-            b.btnPlayerChatMic.setImageResource(R.drawable.ic_baseline_mic_off_24)
-            val whiteColor = ContextCompat.getColor(b.root.context, R.color.white)
-            b.playerMicBtt.iconTint = ColorStateList.valueOf(whiteColor)
-            b.playerMicBtt.setIconResource(R.drawable.ic_baseline_mic_off_24)
-            b.playerMicBtt.text = getString(R.string.mic_off)
-            val primaryColor = b.root.context.colorFromAttribute(R.attr.colorPrimary)
-            b.playerFloatingMic.backgroundTintList = ColorStateList.valueOf(primaryColor)
-            b.playerFloatingMic.setImageResource(R.drawable.ic_baseline_mic_off_24)
-            b.playerFloatingMicContainer.animate().alpha(0.55f).setDuration(150).start()
-        }
-    }
-
-    @SuppressLint("ClickableViewAccessibility")
-    private fun setupDraggableFloatingMic(micContainer: View, micButton: View) {
-        setupUnifiedMicButton(micButton)
-        micContainer.alpha = 0.55f
-
-        var initialX = 0f
-        var initialY = 0f
-        var initialTouchX = 0f
-        var initialTouchY = 0f
-        var isDragging = false
-        var isLongPressed = false
-
-        val longPressHandler = android.os.Handler(android.os.Looper.getMainLooper())
-        val longPressRunnable = Runnable {
-            isLongPressed = true
-            isDragging = true
-            micContainer.animate().scaleX(1.15f).scaleY(1.15f).alpha(1.0f).setDuration(120).start()
-            micButton.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-        }
-
-        micButton.setOnTouchListener { v, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    initialX = micContainer.x
-                    initialY = micContainer.y
-                    initialTouchX = event.rawX
-                    initialTouchY = event.rawY
-                    isDragging = false
-                    isLongPressed = false
-                    longPressHandler.postDelayed(longPressRunnable, 300L) // 300ms long press to enable dragging
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    val dx = event.rawX - initialTouchX
-                    val dy = event.rawY - initialTouchY
-                    val dist = Math.hypot(dx.toDouble(), dy.toDouble())
-                    if (isLongPressed || isDragging) {
-                        val parent = micContainer.parent as? View ?: return@setOnTouchListener true
-                        val newX = (initialX + dx).coerceIn(0f, (parent.width - micContainer.width).coerceAtLeast(0).toFloat())
-                        val newY = (initialY + dy).coerceIn(0f, (parent.height - micContainer.height).coerceAtLeast(0).toFloat())
-                        micContainer.x = newX
-                        micContainer.y = newY
-                    } else if (dist > 20) {
-                        longPressHandler.removeCallbacks(longPressRunnable)
-                    }
-                    true
-                }
-                MotionEvent.ACTION_UP -> {
-                    longPressHandler.removeCallbacks(longPressRunnable)
-                    val idleAlpha = if (voiceHelper?.isLiveMicOn == true) 0.85f else 0.55f
-                    micContainer.animate().scaleX(1.0f).scaleY(1.0f).alpha(idleAlpha).setDuration(150).start()
-                    if (!isDragging && !isLongPressed) {
-                        // Short tap: toggle Mic ON/OFF!
-                        v.performClick()
-                    }
-                    true
-                }
-                MotionEvent.ACTION_CANCEL -> {
-                    longPressHandler.removeCallbacks(longPressRunnable)
-                    val idleAlpha = if (voiceHelper?.isLiveMicOn == true) 0.85f else 0.55f
-                    micContainer.animate().scaleX(1.0f).scaleY(1.0f).alpha(idleAlpha).setDuration(150).start()
-                    true
-                }
-                else -> false
-            }
-        }
-    }
-
-    private fun setupUnifiedMicButton(micView: View) {
-        // Pure Click / Tap toggle (Mic ON / Mic OFF) as requested by user
-        micView.setOnClickListener {
-            val act = activity ?: return@setOnClickListener
-            if (!WatchTogetherManager.isInRoom) {
-                showToast(R.string.voice_join_room_first)
-                showWatchTogetherDialog()
-                return@setOnClickListener
-            }
-            val vh = voiceHelper ?: WatchTogetherVoiceHelper(act.applicationContext).also { voiceHelper = it }
-            if (vh.isLiveMicOn) {
-                // Turn Mic OFF (Mute)
-                vh.stopLiveMic()
-                updateMicUI(false)
-                showToast(R.string.mic_turned_off)
-            } else {
-                // Check Permission
-                if (!vh.hasMicPermission()) {
-                    ActivityCompat.requestPermissions(
-                        act,
-                        arrayOf(Manifest.permission.RECORD_AUDIO),
-                        1337
-                    )
-                    showToast(R.string.voice_permission_needed)
-                    return@setOnClickListener
-                }
-                // Turn Mic ON (Live Call)
-                val started = vh.startLiveMic { base64Audio, duration ->
-                    val senderNick = WatchTogetherManager.getSavedNickname(act).ifBlank {
-                        WatchTogetherManager.currentRoom?.members?.get(WatchTogetherManager.myUserId)?.name
-                            ?: WatchTogetherManager.pendingHostNickname
-                            ?: "User"
-                    }
-                    WatchTogetherManager.sendVoiceMessage(base64Audio, duration, senderNick)
-                }
-                if (started) {
-                    updateMicUI(true)
-                    showToast(R.string.mic_turned_on)
-                }
-            }
-        }
     }
 
     fun checkPendingWatchTogether() {
@@ -1158,48 +941,11 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
                 // Host button
                 binding.btnHostStartPlay.isVisible = WatchTogetherManager.isHost
-                setupUnifiedMicButton(binding.btnDialogMic)
-                binding.layoutDialogVoice.setOnClickListener {
-                    binding.btnDialogMic.performClick()
-                }
-
-                val updateDialogVoiceUI: (Boolean) -> Unit = { isMicOn ->
-                    if (isMicOn) {
-                        binding.iconDialogVoiceBadge.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#33FF3344"))
-                        binding.iconDialogVoice.setColorFilter(Color.parseColor("#FF3344"))
-                        binding.iconDialogVoice.setImageResource(R.drawable.ic_baseline_mic_24)
-                        binding.tvDialogVoiceTitle.text = getString(R.string.voice_chat)
-                        binding.tvDialogVoiceSubtitle.text = getString(R.string.voice_status_live)
-                        binding.tvDialogVoiceSubtitle.setTextColor(Color.parseColor("#4CAF50"))
-                        binding.btnDialogMic.text = getString(R.string.mic_on)
-                        binding.btnDialogMic.setIconResource(R.drawable.ic_baseline_mic_24)
-                        binding.btnDialogMic.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FF3344"))
-                        binding.btnDialogMic.setTextColor(Color.WHITE)
-                        binding.btnDialogMic.iconTint = ColorStateList.valueOf(Color.WHITE)
-                    } else {
-                        binding.iconDialogVoiceBadge.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#26FFFFFF"))
-                        binding.iconDialogVoice.setColorFilter(Color.WHITE)
-                        binding.iconDialogVoice.setImageResource(R.drawable.ic_baseline_mic_off_24)
-                        binding.tvDialogVoiceTitle.text = getString(R.string.voice_chat)
-                        binding.tvDialogVoiceSubtitle.text = getString(R.string.voice_hold_to_talk)
-                        val grayColor = act.colorFromAttribute(R.attr.grayTextColor) ?: Color.GRAY
-                        binding.tvDialogVoiceSubtitle.setTextColor(grayColor)
-                        binding.btnDialogMic.text = getString(R.string.voice_turn_on)
-                        binding.btnDialogMic.setIconResource(R.drawable.ic_baseline_mic_off_24)
-                        binding.btnDialogMic.backgroundTintList = ColorStateList.valueOf(Color.WHITE)
-                        val darkColor = Color.parseColor("#1C1C1E")
-                        binding.btnDialogMic.setTextColor(darkColor)
-                        binding.btnDialogMic.iconTint = ColorStateList.valueOf(darkColor)
-                    }
-                }
-                currentDialogVoiceUpdater = updateDialogVoiceUI
-                updateDialogVoiceUI(voiceHelper?.isLiveMicOn == true)
-                playerBinding?.playerFloatingMicContainer?.isVisible = true
+                binding.layoutDialogVoice.isGone = true
                 playerBinding?.playerChatBtt?.isGone = false
             } else {
                 binding.layoutNotInRoom.isVisible = true
                 binding.layoutInRoom.isVisible = false
-                playerBinding?.playerFloatingMicContainer?.isVisible = false
                 playerBinding?.playerChatBtt?.isGone = true
             }
             binding.watchTogetherLoading.isVisible = false
@@ -1369,15 +1115,12 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         }
 
         binding.btnLeaveRoom.setOnClickListener {
-            voiceHelper?.stopLiveMic()
-            updateMicUI(false)
             WatchTogetherManager.leaveRoom()
             showToast(R.string.leave_room)
             updateUI()
         }
 
         val dismiss = DialogInterface.OnDismissListener {
-            currentDialogVoiceUpdater = null
             act.hideSystemUI()
             selectWatchTogetherDialog = null
         }
@@ -1472,20 +1215,10 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             playerLock.isGone = !isShowing
             playerGoBackHolder.isGone = isGone
             playerSourcesBtt.isGone = isGone
-            playerWatchTogetherBtt.isVisible = !isGone && isLayout(TV or EMULATOR)
-            playerMicBtt.isVisible = !isGone && isLayout(TV or EMULATOR)
+            playerWatchTogetherBtt.isVisible = !isGone
+            playerMicBtt.isGone = true
             playerChatBtt.isGone = isGone || !WatchTogetherManager.isInRoom
-            if (!isGone && WatchTogetherManager.isInRoom) {
-                playerFloatingMicContainer.isVisible = true
-                val targetAlpha = if (voiceHelper?.isLiveMicOn == true) 0.85f else 0.55f
-                playerFloatingMicContainer.animate().alpha(targetAlpha).setDuration(200).start()
-            } else {
-                playerFloatingMicContainer.animate().alpha(0f).setDuration(200).withEndAction {
-                    if (isGone || !WatchTogetherManager.isInRoom) {
-                        playerFloatingMicContainer.isVisible = false
-                    }
-                }.start()
-            }
+            playerFloatingMicContainer.isGone = true
             if (isGone && playerChatBarContainer.isVisible) {
                 playerChatBarContainer.isVisible = false
             }
@@ -2021,10 +1754,6 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             btnPlayerChatSend.setOnClickListener {
                 sendCurrentChatMessage()
             }
-
-            setupUnifiedMicButton(btnPlayerChatMic)
-            setupUnifiedMicButton(playerMicBtt)
-            setupDraggableFloatingMic(playerFloatingMicContainer, playerFloatingMic)
 
             etPlayerChatInput.setOnEditorActionListener { _, actionId, _ ->
                 if (actionId == EditorInfo.IME_ACTION_SEND) {
