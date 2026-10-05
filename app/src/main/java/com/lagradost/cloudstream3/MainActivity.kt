@@ -1201,6 +1201,10 @@ class MainActivity : AppCompatActivity(), ColorPickerDialogListener, BiometricCa
             settingsManager.getBoolean(getString(R.string.enable_nsfw_on_providers_key), false)
 
         MainAPI.settingsForProvider = settingsForProvider
+        try {
+            AccountManager.initMainAPI()
+        } catch (_: Throwable) {
+        }
 
         loadThemes(this)
         enableEdgeToEdgeCompat()

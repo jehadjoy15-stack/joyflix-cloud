@@ -522,7 +522,7 @@ class AniListApi : SyncAPI() {
                     "UTF-8"
                 )
             ), // (if (vars == null) mapOf("query" to q) else mapOf("query" to q, "variables" to vars))
-            timeout = 5 // REASONABLE TIMEOUT
+            timeout = 30 // 30s timeout to prevent failures on mobile networks
         ).text.replace("\\/", "/")
     }
 

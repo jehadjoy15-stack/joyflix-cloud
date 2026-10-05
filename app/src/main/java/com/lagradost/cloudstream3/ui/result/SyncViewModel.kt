@@ -92,12 +92,19 @@ class SyncViewModel : ViewModel() {
         var isValid = false
 
         map?.forEach { (prefix, id) ->
-            isValid = addSync(prefix, id) || isValid
+            if (prefix.isNotBlank() && id.isNotBlank()) {
+                isValid = addSync(prefix, id) || isValid
+            }
         }
 
         val imdbId = map?.get("imdb") ?: map?.get("imdb_id")
         if (imdbId != null && !syncs.containsKey(simklApi.idPrefix)) {
             isValid = addSync(simklApi.idPrefix, imdbId) || isValid
+        }
+
+        val tmdbId = map?.get("tmdb") ?: map?.get("tmdb_id")
+        if (tmdbId != null && !syncs.containsKey(simklApi.idPrefix)) {
+            isValid = addSync(simklApi.idPrefix, "tmdb:$tmdbId") || isValid
         }
 
         val malId = map?.get("mal") ?: map?.get("mal_id")

@@ -1856,11 +1856,11 @@ interface LoadResponse {
         get() = score?.toOld()
 
     companion object {
-        var malIdPrefix = "" //malApi.idPrefix
+        var malIdPrefix = "mal" //malApi.idPrefix
 
-        var kitsuIdPrefix = "" //kitsuApi.idPrefix
-        var aniListIdPrefix = "" //aniListApi.idPrefix
-        var simklIdPrefix = "" //simklApi.idPrefix
+        var kitsuIdPrefix = "kitsu" //kitsuApi.idPrefix
+        var aniListIdPrefix = "anilist" //aniListApi.idPrefix
+        var simklIdPrefix = "simkl" //simklApi.idPrefix
         var isTrailersEnabled = true
 
         /**
@@ -1929,13 +1929,13 @@ interface LoadResponse {
         fun LoadResponse.getImdbId(): String? {
             return safe {
                 readIdFromString(this.syncData[simklIdPrefix])[SimklSyncServices.Imdb]
-            }
+            } ?: this.syncData["imdb"] ?: this.syncData["imdb_id"]
         }
 
         fun LoadResponse.getTMDbId(): String? {
             return safe {
                 readIdFromString(this.syncData[simklIdPrefix])[SimklSyncServices.Tmdb]
-            }
+            } ?: this.syncData["tmdb"] ?: this.syncData["tmdb_id"]
         }
 
         fun LoadResponse.addMalId(id: Int?) {
@@ -2048,6 +2048,9 @@ interface LoadResponse {
 
         fun LoadResponse.addImdbId(id: String?) {
             // TODO add IMDb sync
+            if (id != null) {
+                this.syncData["imdb"] = id
+            }
             this.addSimklId(SimklSyncServices.Imdb, id)
         }
 
@@ -2063,6 +2066,9 @@ interface LoadResponse {
 
         fun LoadResponse.addTMDbId(id: String?) {
             // TODO add TMDb sync
+            if (id != null) {
+                this.syncData["tmdb"] = id
+            }
             this.addSimklId(SimklSyncServices.Tmdb, id)
         }
 

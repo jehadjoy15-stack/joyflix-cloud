@@ -56,13 +56,19 @@ object SyncUtil {
                 // 1. Direct ID resolution
                 var targetId: String? = extraSyncs?.get(prefix) ?: syncData?.get(prefix) ?: syncData?.get("${prefix}_id")
                 if (targetId == null && prefix == AccountManager.simklApi.idPrefix) {
-                    targetId = syncData?.get("imdb") ?: syncData?.get("imdb_id")
+                    targetId = extraSyncs?.get("imdb") ?: syncData?.get("imdb") ?: syncData?.get("imdb_id")
+                    if (targetId == null) {
+                        val tmdbId = extraSyncs?.get("tmdb") ?: syncData?.get("tmdb") ?: syncData?.get("tmdb_id")
+                        if (tmdbId != null) {
+                            targetId = "tmdb:$tmdbId"
+                        }
+                    }
                 }
                 if (targetId == null && prefix == AccountManager.malApi.idPrefix) {
-                    targetId = syncData?.get("mal") ?: syncData?.get("mal_id")
+                    targetId = extraSyncs?.get("mal") ?: syncData?.get("mal") ?: syncData?.get("mal_id")
                 }
                 if (targetId == null && prefix == AccountManager.aniListApi.idPrefix) {
-                    targetId = syncData?.get("anilist") ?: syncData?.get("anilist_id")
+                    targetId = extraSyncs?.get("anilist") ?: syncData?.get("anilist") ?: syncData?.get("anilist_id")
                 }
 
                 // 2. Search fallback if targetId is still missing and title is provided
