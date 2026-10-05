@@ -132,16 +132,24 @@ class MALApi : SyncAPI() {
     }
 
     override suspend fun user(token: AuthToken?): AuthUser? {
-        val user = app.get(
-            "$apiUrl/v2/users/@me",
-            headers = mapOf(
-                "Authorization" to "Bearer ${token?.accessToken ?: return null}"
-            ), cacheTime = 0
-        ).parsed<MalUser>()
+        val auth = token?.accessToken ?: return null
+        val user = try {
+            app.get(
+                "$apiUrl/v2/users/@me",
+                headers = mapOf(
+                    "Authorization" to "Bearer $auth"
+                ), cacheTime = 0
+            ).parsedSafe<MalUser>()
+        } catch (t: Throwable) {
+            logError(t)
+            null
+        }
+        val id = user?.id ?: 1
+        val name = user?.name ?: "MAL User"
         return AuthUser(
-            id = user.id,
-            name = user.name,
-            profilePicture = user.picture,
+            id = id,
+            name = name,
+            profilePicture = user?.picture,
         )
     }
 
@@ -687,10 +695,10 @@ class MALApi : SyncAPI() {
 
     @Serializable
     data class ResponseToken(
-        @JsonProperty("token_type") @SerialName("token_type") val tokenType: String,
-        @JsonProperty("expires_in") @SerialName("expires_in") val expiresIn: Int,
+        @JsonProperty("token_type") @SerialName("token_type") val tokenType: String? = null,
+        @JsonProperty("expires_in") @SerialName("expires_in") val expiresIn: Long = 2678400L,
         @JsonProperty("access_token") @SerialName("access_token") val accessToken: String,
-        @JsonProperty("refresh_token") @SerialName("refresh_token") val refreshToken: String,
+        @JsonProperty("refresh_token") @SerialName("refresh_token") val refreshToken: String? = null,
     )
 
     @Serializable
@@ -721,11 +729,11 @@ class MALApi : SyncAPI() {
 
     @Serializable
     data class MalUser(
-        @JsonProperty("id") @SerialName("id") val id: Int,
-        @JsonProperty("name") @SerialName("name") val name: String,
-        @JsonProperty("location") @SerialName("location") val location: String,
-        @JsonProperty("joined_at") @SerialName("joined_at") val joinedAt: String,
-        @JsonProperty("picture") @SerialName("picture") val picture: String?,
+        @JsonProperty("id") @SerialName("id") val id: Int = 1,
+        @JsonProperty("name") @SerialName("name") val name: String = "User",
+        @JsonProperty("location") @SerialName("location") val location: String? = null,
+        @JsonProperty("joined_at") @SerialName("joined_at") val joinedAt: String? = null,
+        @JsonProperty("picture") @SerialName("picture") val picture: String? = null,
     )
 
     @Serializable

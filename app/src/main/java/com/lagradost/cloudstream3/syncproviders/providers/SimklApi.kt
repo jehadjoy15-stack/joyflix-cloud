@@ -304,18 +304,18 @@ class SimklApi : SyncAPI() {
         /** https://simkl.docs.apiary.io/#reference/users/settings/receive-settings */
         @Serializable
         data class SettingsResponse(
-            @JsonProperty("user") @SerialName("user") val user: User,
-            @JsonProperty("account") @SerialName("account") val account: Account,
+            @JsonProperty("user") @SerialName("user") val user: User? = null,
+            @JsonProperty("account") @SerialName("account") val account: Account? = null,
         ) {
             @Serializable
             data class User(
-                @JsonProperty("name") @SerialName("name") val name: String,
-                @JsonProperty("avatar") @SerialName("avatar") val avatar: String, // Url
+                @JsonProperty("name") @SerialName("name") val name: String? = null,
+                @JsonProperty("avatar") @SerialName("avatar") val avatar: String? = null, // Url
             )
 
             @Serializable
             data class Account(
-                @JsonProperty("id") @SerialName("id") val id: Int,
+                @JsonProperty("id") @SerialName("id") val id: Int? = null,
             )
         }
 
@@ -932,9 +932,18 @@ class SimklApi : SyncAPI() {
         }
     }
 
-    private suspend fun getUser(token: AuthToken): SettingsResponse =
-        app.post("$mainUrl/users/settings", headers = getHeaders(token))
-            .parsed<SettingsResponse>()
+    private suspend fun getUser(token: AuthToken): SettingsResponse? =
+        try {
+            app.get("$mainUrl/users/settings", headers = getHeaders(token))
+                .parsedSafe<SettingsResponse>()
+        } catch (_: Throwable) {
+            null
+        } ?: try {
+            app.post("$mainUrl/users/settings", headers = getHeaders(token))
+                .parsedSafe<SettingsResponse>()
+        } catch (_: Throwable) {
+            null
+        }
 
     /**
      * Useful to get episodes on demand to prevent unnecessary requests.
@@ -1288,7 +1297,7 @@ class SimklApi : SyncAPI() {
         val codeVerifier = generateCodeVerifier()
         val codeChallenge = generateCodeChallenge(codeVerifier)
         val state = "simkl_" + BigInteger(130, SecureRandom()).toString(32)
-        val url = "https://simkl.com/oauth2/authorize?response_type=code&client_id=$CLIENT_ID&redirect_uri=$SIMKL_REDIRECT_URI&state=$state&code_challenge=$codeChallenge&code_challenge_method=S256"
+        val url = "https://simkl.com/oauth2/authorize?response_type=code&client_id=$CLIENT_ID&redirect_uri=$SIMKL_REDIRECT_URI&state=$state&scope=media:read%20media:write&code_challenge=$codeChallenge&code_challenge_method=S256"
         val payload = SimklPayload(state, codeVerifier).toJson()
         setKey("oauth_payload_$idPrefix", payload)
         return AuthLoginPage(
@@ -1436,11 +1445,14 @@ class SimklApi : SyncAPI() {
     }
 
     override suspend fun user(token: AuthToken?): AuthUser? {
-        val user = getUser(token ?: return null)
+        if (token?.accessToken == null) return null
+        val user = getUser(token)
+        val id = user?.account?.id ?: 1
+        val name = user?.user?.name ?: "Simkl User"
         return AuthUser(
-            id = user.account.id,
-            name = user.user.name,
-            profilePicture = user.user.avatar,
+            id = id,
+            name = name,
+            profilePicture = user?.user?.avatar,
         )
     }
 }
