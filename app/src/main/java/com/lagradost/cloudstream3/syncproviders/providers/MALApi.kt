@@ -47,11 +47,11 @@ class MALApi : SyncAPI() {
     override val redirectUrlIdentifier: String? = "mallogin"
     override fun isValidRedirectUrl(url: String): Boolean {
         val lower = url.lowercase()
-        if (lower.contains("/mallogin") || lower.contains("mallogin") || lower.contains("myanimelist")) return true
-        if (url.contains("RequestID", ignoreCase = true)) return true
-        if (lower.contains("joyflix.fun") && lower.contains("code=") && !lower.contains("simkl") && !lower.contains("anilist") && !lower.contains("access_token")) {
-            return true
+        if (lower.contains("simkl") || lower.contains("anilist") || lower.contains("access_token")) {
+            return false
         }
+        if (lower.contains("/mallogin") || lower.contains("mallogin") || lower.contains("myanimelist")) return true
+        if (url.contains("RequestID", ignoreCase = true) || lower.contains("mal")) return true
         return false
     }
     override val mainUrl = "https://myanimelist.net"
@@ -96,76 +96,31 @@ class MALApi : SyncAPI() {
 
         var tokenResponse: ResponseToken? = null
 
-        // 1. Standard PKCE (no client_secret, as expected for Android public clients)
-        try {
-            tokenResponse = app.post(
-                "$mainUrl/v1/oauth2/token",
-                data = baseParams
-            ).parsedSafe<ResponseToken>()
-        } catch (t: Throwable) {
-            logError(t)
-        }
+        val redirectUris = listOf("https://joyflix.fun/", "https://joyflix.fun", "joyflixapp://mallogin", "")
+        for (redirect in redirectUris) {
+            val redirectParam = if (redirect.isNotEmpty()) mapOf("redirect_uri" to redirect) else emptyMap()
 
-        // 2. If standard PKCE failed and secret is configured, try with client_secret
-        if (tokenResponse == null && secret.isNotBlank()) {
+            if (secret.isNotBlank()) {
+                try {
+                    tokenResponse = app.post(
+                        "$mainUrl/v1/oauth2/token",
+                        data = baseParams + redirectParam + ("client_secret" to secret)
+                    ).parsedSafe<ResponseToken>()
+                } catch (t: Throwable) {
+                    logError(t)
+                }
+            }
+            if (tokenResponse?.accessToken != null) break
+
             try {
                 tokenResponse = app.post(
                     "$mainUrl/v1/oauth2/token",
-                    data = baseParams + ("client_secret" to secret)
+                    data = baseParams + redirectParam
                 ).parsedSafe<ResponseToken>()
             } catch (t: Throwable) {
                 logError(t)
             }
-        }
-
-        // 3. Try with redirect_uri
-        if (tokenResponse == null) {
-            try {
-                tokenResponse = app.post(
-                    "$mainUrl/v1/oauth2/token",
-                    data = baseParams + ("redirect_uri" to "https://joyflix.fun/")
-                ).parsedSafe<ResponseToken>()
-            } catch (t: Throwable) {
-                logError(t)
-            }
-        }
-
-        // 4. Try with both client_secret and redirect_uri
-        if (tokenResponse == null && secret.isNotBlank()) {
-            try {
-                tokenResponse = app.post(
-                    "$mainUrl/v1/oauth2/token",
-                    data = baseParams + ("client_secret" to secret) + ("redirect_uri" to "https://joyflix.fun/")
-                ).parsedSafe<ResponseToken>()
-            } catch (t: Throwable) {
-                logError(t)
-            }
-        }
-
-        // 5. Try with joyflixapp://mallogin
-        if (tokenResponse == null) {
-            try {
-                tokenResponse = app.post(
-                    "$mainUrl/v1/oauth2/token",
-                    data = if (secret.isNotBlank()) baseParams + ("client_secret" to secret) + ("redirect_uri" to "joyflixapp://mallogin")
-                    else baseParams + ("redirect_uri" to "joyflixapp://mallogin")
-                ).parsedSafe<ResponseToken>()
-            } catch (t: Throwable) {
-                logError(t)
-            }
-        }
-
-        // 6. Try with https://joyflix.fun (no trailing slash)
-        if (tokenResponse == null) {
-            try {
-                tokenResponse = app.post(
-                    "$mainUrl/v1/oauth2/token",
-                    data = if (secret.isNotBlank()) baseParams + ("client_secret" to secret) + ("redirect_uri" to "https://joyflix.fun")
-                    else baseParams + ("redirect_uri" to "https://joyflix.fun")
-                ).parsedSafe<ResponseToken>()
-            } catch (t: Throwable) {
-                logError(t)
-            }
+            if (tokenResponse?.accessToken != null) break
         }
 
         val token = tokenResponse ?: return null
@@ -456,7 +411,7 @@ class MALApi : SyncAPI() {
         val codeVerifier = generateCodeVerifier()
         val requestId = ++requestIdCounter
         val codeChallenge = codeVerifier
-        val request = "$mainUrl/v1/oauth2/authorize?response_type=code&client_id=$key&code_challenge=$codeChallenge&state=RequestID$requestId"
+        val request = "$mainUrl/v1/oauth2/authorize?response_type=code&client_id=$key&code_challenge=$codeChallenge&code_challenge_method=plain&redirect_uri=https://joyflix.fun/&state=RequestID$requestId"
         val payload = Payload(requestId, codeVerifier).toJson()
         setKey("oauth_payload_$idPrefix", payload)
         return AuthLoginPage(
