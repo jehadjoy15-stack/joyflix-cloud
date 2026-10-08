@@ -251,7 +251,32 @@ object PluginManager {
         assertNonRecursiveCallstack()
         isSyncingPlugins = true
 
+        fun isUnwanted(name: String, internalName: String): Boolean {
+            val n = name.lowercase()
+            val i = internalName.lowercase()
+            return n.contains("watchparty") || n.contains("watch party") || n.contains("syncplay") ||
+                    i.contains("watchparty") || i.contains("watch party") || i.contains("syncplay") ||
+                    n.contains("netflix") || n.contains("netmirror") ||
+                    i.contains("netflix") || i.contains("netmirror")
+        }
+
         try {
+            // Clean up any previously installed unwanted/conflicting plugins (like third-party WatchParty)
+            try {
+                val currentInstalled = getPluginsOnline()
+                for (p in currentInstalled) {
+                    val pName = File(p.filePath).nameWithoutExtension
+                    if (isUnwanted(p.internalName, p.internalName) || isUnwanted(pName, pName)) {
+                        Log.i(TAG, "Purging unwanted/conflicting plugin: ${p.filePath}")
+                        unloadPlugin(p.filePath)
+                        File(p.filePath).delete()
+                        deletePluginData(p)
+                    }
+                }
+            } catch (t: Throwable) {
+                logError(t)
+            }
+
             // 1. Load any already downloaded plugins first
             try {
                 ___DO_NOT_CALL_FROM_A_PLUGIN_loadAllOnlinePlugins(activity)
@@ -272,9 +297,13 @@ object PluginManager {
 
             Log.i(TAG, "JoyFlix sync: Checking extensions from ${urls.size} repos...")
 
-            val onlinePlugins = urls.toList().amap { repoData ->
+            val rawOnlinePlugins = urls.toList().amap { repoData ->
                 RepositoryManager.getRepoPlugins(repoData)?.toList() ?: emptyList()
             }.flatten().distinctBy { it.plugin.url }
+
+            val onlinePlugins = rawOnlinePlugins.filter {
+                !isUnwanted(it.plugin.name, it.plugin.internalName)
+            }
 
             Log.i(TAG, "JoyFlix sync: Found ${onlinePlugins.size} online plugins in repo")
 
@@ -742,13 +771,27 @@ object PluginManager {
             val name: String = manifest.name ?: "NO NAME".also {
                 Log.d(TAG, "No manifest name for ${data.internalName}")
             }
-            if (name.contains("netflix", ignoreCase = true) ||
-                name.contains("netmirror", ignoreCase = true) ||
-                data.internalName.contains("netflix", ignoreCase = true) ||
-                data.internalName.contains("netmirror", ignoreCase = true) ||
-                fileName.contains("netflix", ignoreCase = true) ||
-                fileName.contains("netmirror", ignoreCase = true)) {
-                Log.i(TAG, "Skipping blocked plugin: $name / ${data.internalName}")
+            val lowerName = name.lowercase()
+            val lowerInternal = data.internalName.lowercase()
+            val lowerFile = fileName.lowercase()
+            val lowerClass = (manifest.pluginClassName ?: "").lowercase()
+
+            val isBlocked = lowerName.contains("netflix") || lowerName.contains("netmirror") ||
+                lowerName.contains("watchparty") || lowerName.contains("watch party") || lowerName.contains("syncplay") ||
+                lowerInternal.contains("netflix") || lowerInternal.contains("netmirror") ||
+                lowerInternal.contains("watchparty") || lowerInternal.contains("watch party") || lowerInternal.contains("syncplay") ||
+                lowerFile.contains("netflix") || lowerFile.contains("netmirror") ||
+                lowerFile.contains("watchparty") || lowerFile.contains("watch party") || lowerFile.contains("syncplay") ||
+                lowerClass.contains("watchparty") || lowerClass.contains("watch_party") || lowerClass.contains("syncplay")
+
+            if (isBlocked) {
+                Log.i(TAG, "Deleting and skipping blocked/unwanted plugin: $name / ${data.internalName}")
+                try {
+                    file.delete()
+                    deletePluginData(data)
+                } catch (t: Throwable) {
+                    logError(t)
+                }
                 return false
             }
             val version: Int = manifest.version ?: PLUGIN_VERSION_NOT_SET.also {

@@ -31,12 +31,13 @@
             <!-- TITLE / LOGO -->
             <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="88dp">
+                android:layout_height="140dp">
 
                 <ImageView
                     android:id="@+id/player_movie_logo"
                     android:layout_width="wrap_content"
                     android:layout_height="match_parent"
+                    android:maxWidth="480dp"
                     android:adjustViewBounds="true"
                     android:scaleType="fitStart"
                     android:visibility="gone"
@@ -54,7 +55,7 @@
                     android:shadowDy="2"
                     android:shadowRadius="4"
                     android:textColor="@android:color/white"
-                    android:textSize="30sp"
+                    android:textSize="36sp"
                     android:textStyle="bold"
                     tools:text="Zootopia 2" />
             </FrameLayout>
@@ -1356,19 +1357,10 @@
                             android:id="@+id/player_mic_btt"
                             style="@style/VideoButtonTV"
                             android:nextFocusLeft="@id/player_watch_together_btt"
-                            android:nextFocusRight="@id/player_chat_btt"
+                            android:nextFocusRight="@id/player_skip_op"
                             android:nextFocusUp="@id/player_pause_play"
                             android:text="@string/voice_call"
                             app:icon="@drawable/ic_baseline_mic_24" />
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/player_chat_btt"
-                            style="@style/VideoButtonTV"
-                            android:nextFocusLeft="@id/player_mic_btt"
-                            android:nextFocusRight="@id/player_skip_op"
-                            android:nextFocusUp="@id/player_pause_play"
-                            android:text="@string/chat"
-                            app:icon="@drawable/ic_baseline_chat_24" />
                     </LinearLayout>
                 </HorizontalScrollView>
             </LinearLayout>

@@ -353,12 +353,11 @@
                 tools:text="👑 Host (Joy)" />
         </LinearLayout>
 
-        <!-- Live Voice Call Card (Hidden as voice feature is removed) -->
+        <!-- Live Voice Call Card -->
         <LinearLayout
             android:id="@+id/layout_dialog_voice"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:visibility="gone"
             android:layout_marginTop="12dp"
             android:background="@drawable/player_button_background"
             android:clickable="true"

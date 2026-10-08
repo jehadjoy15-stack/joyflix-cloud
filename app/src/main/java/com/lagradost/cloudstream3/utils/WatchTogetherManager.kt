@@ -32,6 +32,7 @@ import kotlin.random.Random
 
 object WatchTogetherManager {
     private const val TAG = "WatchTogether"
+    const val JOYCALL_SERVER_URL = "https://joycall.onrender.com"
     const val DEFAULT_FIREBASE_URL = "https://joyflix-1eb68-default-rtdb.asia-southeast1.firebasedatabase.app"
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaTypeOrNull()
     private const val PREFS_KEY_NICKNAME = "watch_together_nickname"
@@ -45,7 +46,9 @@ object WatchTogetherManager {
         @JsonProperty("userId") val userId: String = "",
         @JsonProperty("name") val name: String = "",
         @JsonProperty("isHost") val isHost: Boolean = false,
-        @JsonProperty("joinedAt") val joinedAt: Long = 0L
+        @JsonProperty("joinedAt") val joinedAt: Long = 0L,
+        @JsonProperty("socketId") val socketId: String? = null,
+        @JsonProperty("voiceActive") val voiceActive: Boolean = false
     )
 
     @Serializable
@@ -93,7 +96,8 @@ object WatchTogetherManager {
         @JsonProperty("createdAt") val createdAt: Long = 0L,
         @JsonProperty("playback") val playback: PlaybackState = PlaybackState(),
         @JsonProperty("episodeIndex") val episodeIndex: Int? = null,
-        @JsonProperty("members") val members: Map<String, MemberData> = emptyMap(),
+        @JsonProperty("members") val members: List<MemberData> = emptyList(),
+        @JsonProperty("messages") val messages: List<ChatMessage> = emptyList(),
         @JsonProperty("lastMessage") val lastMessage: ChatMessage? = null,
         @JsonProperty("lastVoice") val lastVoice: VoiceMessage? = null
     )
@@ -133,6 +137,30 @@ object WatchTogetherManager {
     private var onNewVoiceCallback: ((VoiceMessage) -> Unit)? = null
     private var lastSeenVoiceId: String? = null
     private val knownMemberIds = mutableSetOf<String>()
+
+    val chatHistory = arrayListOf<ChatMessage>()
+    private var onChatHistoryUpdatedCallback: ((List<ChatMessage>) -> Unit)? = null
+    var isVoiceCallActive: Boolean = false
+        private set
+    private var onVoiceCallToggledCallback: ((Boolean) -> Unit)? = null
+    private var onEpisodeChangedCallback: ((Int) -> Unit)? = null
+
+    fun setOnChatHistoryUpdatedListener(listener: ((List<ChatMessage>) -> Unit)?) {
+        onChatHistoryUpdatedCallback = listener
+    }
+
+    fun setOnVoiceCallToggledListener(listener: ((Boolean) -> Unit)?) {
+        onVoiceCallToggledCallback = listener
+    }
+
+    fun setOnEpisodeChangedListener(listener: ((Int) -> Unit)?) {
+        onEpisodeChangedCallback = listener
+    }
+
+    fun toggleVoiceCall(active: Boolean) {
+        isVoiceCallActive = active
+        onVoiceCallToggledCallback?.invoke(active)
+    }
 
     fun setOnNewMessageListener(listener: ((ChatMessage) -> Unit)?) {
         onNewMessageCallback = listener
@@ -182,14 +210,40 @@ object WatchTogetherManager {
         )
 
         lastSeenMessageId = msg.id
-        // Trigger immediately locally
+        chatHistory.add(msg)
+        onChatHistoryUpdatedCallback?.invoke(chatHistory.toList())
         onNewMessageCallback?.invoke(msg)
 
         ioSafe {
             try {
-                val url = "${getBaseUrl()}/rooms/$roomId/lastMessage.json"
-                val body = msg.toJson().toRequestBody(JSON_MEDIA_TYPE)
-                app.put(url, requestBody = body)
+                val url = "${getBaseUrl()}/api/rooms/$roomId/message"
+                val body = mapOf(
+                    "senderId" to myUserId,
+                    "senderName" to msg.senderName,
+                    "text" to trimmed
+                ).toJson().toRequestBody(JSON_MEDIA_TYPE)
+                app.post(url, requestBody = body)
+            } catch (e: Throwable) {
+                logError(e)
+            }
+        }
+    }
+
+    fun changeEpisode(episodeIndex: Int, season: Int? = null, episode: Int? = null, title: String? = null) {
+        val roomId = currentRoomId ?: return
+        if (!isHost) return
+
+        currentEpisodeIndex = episodeIndex
+        ioSafe {
+            try {
+                val url = "${getBaseUrl()}/api/rooms/$roomId/change-episode"
+                val body = mapOf(
+                    "episodeIndex" to episodeIndex,
+                    "season" to season,
+                    "episode" to episode,
+                    "title" to title
+                ).toJson().toRequestBody(JSON_MEDIA_TYPE)
+                app.post(url, requestBody = body)
             } catch (e: Throwable) {
                 logError(e)
             }
@@ -217,7 +271,7 @@ object WatchTogetherManager {
     }
 
     private fun getBaseUrl(): String {
-        return DEFAULT_FIREBASE_URL.removeSuffix("/")
+        return JOYCALL_SERVER_URL.removeSuffix("/")
     }
 
     private fun generateRoomCode(): String {
@@ -241,46 +295,38 @@ object WatchTogetherManager {
         episodeIndex: Int? = null
     ): Result<String> {
         return try {
-            val roomId = generateRoomCode()
             currentEpisodeIndex = episodeIndex
-            val myMember = MemberData(
-                userId = myUserId,
-                name = nickname.ifBlank { "Host" },
-                isHost = true,
-                joinedAt = System.currentTimeMillis()
+            val url = "${getBaseUrl()}/api/rooms/create"
+            val map = mapOf(
+                "nickname" to nickname.ifBlank { "Host" },
+                "userId" to myUserId,
+                "title" to title,
+                "streamUrl" to streamUrl,
+                "mediaUrl" to mediaUrl,
+                "apiName" to apiName,
+                "episodeId" to episodeId,
+                "episode" to episode,
+                "season" to season,
+                "poster" to poster,
+                "tvType" to tvType,
+                "isPlaying" to isPlaying,
+                "position" to currentPos,
+                "episodeIndex" to episodeIndex
             )
-            val room = RoomData(
-                roomId = roomId,
-                title = title,
-                streamUrl = streamUrl,
-                mediaUrl = mediaUrl,
-                apiName = apiName,
-                episodeId = episodeId,
-                episode = episode,
-                season = season,
-                poster = poster,
-                tvType = tvType,
-                hostId = myUserId,
-                hostName = nickname.ifBlank { "Host" },
-                createdAt = System.currentTimeMillis(),
-                episodeIndex = episodeIndex,
-                playback = PlaybackState(
-                    isPlaying = isPlaying,
-                    position = currentPos,
-                    updatedAt = System.currentTimeMillis(),
-                    updatedBy = myUserId,
-                    episodeIndex = episodeIndex
-                ),
-                members = mapOf(myUserId to myMember)
-            )
+            val body = map.toJson().toRequestBody(JSON_MEDIA_TYPE)
+            val res = app.post(url, requestBody = body)
 
-            val url = "${getBaseUrl()}/rooms/$roomId.json"
-            val jsonString = room.toJson()
-            val body = jsonString.toRequestBody(JSON_MEDIA_TYPE)
-            val res = app.put(url, requestBody = body)
+            if (res.code != 200) {
+                return Result.failure(Exception("Server returned code ${res.code}"))
+            }
 
-            if (res.text.contains("Permission denied", ignoreCase = true)) {
-                return Result.failure(Exception("Firebase Permission Denied. Please enable read/write rules."))
+            val parsed = AppUtils.parseJson<Map<String, Any?>>(res.text)
+            val roomId = parsed["roomId"]?.toString() ?: generateRoomCode()
+            val roomObj = parsed["room"]
+            val room = if (roomObj != null) {
+                AppUtils.parseJson<RoomData>(roomObj.toJson())
+            } else {
+                RoomData(roomId = roomId, hostId = myUserId, hostName = nickname.ifBlank { "Host" }, episodeIndex = episodeIndex)
             }
 
             knownMemberIds.clear()
@@ -291,6 +337,7 @@ object WatchTogetherManager {
             isHost = true
             isCreatingWatchParty = false
             pendingHostNickname = null
+            chatHistory.clear()
             startListening()
 
             Log.i(TAG, "Created room: $roomId with episodeIndex: $episodeIndex")
@@ -317,41 +364,35 @@ object WatchTogetherManager {
                 "JOY-$trimmed"
             }
 
-            val url = "${getBaseUrl()}/rooms/$roomId.json"
-            val res = app.get(url)
-            val json = res.text
+            val url = "${getBaseUrl()}/api/rooms/join"
+            val body = mapOf(
+                "roomId" to roomId,
+                "nickname" to nickname.ifBlank { "Guest" },
+                "userId" to myUserId
+            ).toJson().toRequestBody(JSON_MEDIA_TYPE)
+            val res = app.post(url, requestBody = body)
 
-            if (json.contains("Permission denied", ignoreCase = true)) {
-                onError("Firebase Permission Denied. Please check Firebase database rules.")
-                return
-            }
-
-            if (json.isBlank() || json == "null") {
+            if (res.code != 200) {
                 onError("Room not found ($roomId)")
                 return
             }
 
-            val room = AppUtils.parseJson<RoomData>(json)
-
-            // Register current user into room's members list
-            val myMember = MemberData(
-                userId = myUserId,
-                name = nickname.ifBlank { "Guest" },
-                isHost = (room.hostId == myUserId),
-                joinedAt = System.currentTimeMillis()
-            )
-            val memberUrl = "${getBaseUrl()}/rooms/$roomId/members/$myUserId.json"
-            val body = myMember.toJson().toRequestBody(JSON_MEDIA_TYPE)
-            app.put(memberUrl, requestBody = body)
+            val parsed = AppUtils.parseJson<Map<String, Any?>>(res.text)
+            val roomObj = parsed["room"] ?: throw Exception("Room data not found")
+            val room = AppUtils.parseJson<RoomData>(roomObj.toJson())
 
             knownMemberIds.clear()
-            room.members.keys.forEach { knownMemberIds.add(it) }
+            room.members.forEach { knownMemberIds.add(it.userId) }
             knownMemberIds.add(myUserId)
 
             currentRoomId = roomId
             currentRoom = room
             isHost = (room.hostId == myUserId)
             currentEpisodeIndex = room.playback.episodeIndex ?: room.episodeIndex
+            chatHistory.clear()
+            if (room.messages.isNotEmpty()) {
+                chatHistory.addAll(room.messages)
+            }
             startListening()
 
             Log.i(TAG, "Joined room: $roomId with episodeIndex: $currentEpisodeIndex")
@@ -363,8 +404,6 @@ object WatchTogetherManager {
     }
 
     fun leaveRoom() {
-        val roomToClean = currentRoomId
-        val host = isHost
         currentRoomId = null
         currentRoom = null
         currentEpisodeIndex = null
@@ -373,22 +412,11 @@ object WatchTogetherManager {
         pendingHostNickname = null
         stopListening()
         knownMemberIds.clear()
+        chatHistory.clear()
         lastSeenMessageId = null
         lastSeenVoiceId = null
-
-        if (roomToClean != null) {
-            ioSafe {
-                try {
-                    if (host) {
-                        app.delete("${getBaseUrl()}/rooms/$roomToClean.json")
-                    } else {
-                        app.delete("${getBaseUrl()}/rooms/$roomToClean/members/$myUserId.json")
-                    }
-                } catch (e: Throwable) {
-                    logError(e)
-                }
-            }
-        }
+        isVoiceCallActive = false
+        onVoiceCallToggledCallback?.invoke(false)
     }
 
     fun broadcastPlayback(isPlaying: Boolean, position: Long, episodeIndex: Int? = null) {
@@ -401,16 +429,13 @@ object WatchTogetherManager {
 
         ioSafe {
             try {
-                val state = PlaybackState(
-                    isPlaying = isPlaying,
-                    position = position,
-                    updatedAt = System.currentTimeMillis(),
-                    updatedBy = myUserId,
-                    episodeIndex = currentEpisodeIndex
-                )
-                val url = "${getBaseUrl()}/rooms/$roomId/playback.json"
-                val body = state.toJson().toRequestBody(JSON_MEDIA_TYPE)
-                app.patch(url, requestBody = body)
+                val url = "${getBaseUrl()}/api/rooms/$roomId/sync"
+                val body = mapOf(
+                    "isPlaying" to isPlaying,
+                    "position" to position,
+                    "updatedBy" to myUserId
+                ).toJson().toRequestBody(JSON_MEDIA_TYPE)
+                app.post(url, requestBody = body)
             } catch (e: Throwable) {
                 logError(e)
             }
@@ -438,30 +463,33 @@ object WatchTogetherManager {
         val roomId = currentRoomId ?: return
 
         syncJob = ioSafe {
-            val url = "${getBaseUrl()}/rooms/$roomId.json"
             while (isActive && currentRoomId == roomId) {
                 try {
-                    delay(500)
+                    delay(800)
                     if (!isActive || currentRoomId != roomId) break
 
+                    val url = "${getBaseUrl()}/api/rooms/$roomId"
                     val res = app.get(url)
-                    val text = res.text
-                    if (text.isNotBlank() && text != "null") {
-                        if (!text.contains("Permission denied", ignoreCase = true)) {
-                            val room = AppUtils.parseJson<RoomData>(text)
+                    if (res.code == 200 && res.text.isNotBlank()) {
+                        val parsed = AppUtils.parseJson<Map<String, Any?>>(res.text)
+                        val roomObj = parsed["room"]
+                        if (roomObj != null) {
+                            val room = AppUtils.parseJson<RoomData>(roomObj.toJson())
                             currentRoom = room
 
-                            // 1. Check remote playback sync
+                            // 1. Check remote playback sync & episode change
                             val state = room.playback
-                            if (state.updatedBy != myUserId) {
-                                if (state.episodeIndex != null) {
-                                    currentEpisodeIndex = state.episodeIndex
+                            if (!isHost && state.updatedBy != myUserId) {
+                                val targetEp = state.episodeIndex ?: room.episodeIndex
+                                if (targetEp != null && targetEp != currentEpisodeIndex) {
+                                    currentEpisodeIndex = targetEp
+                                    onEpisodeChangedCallback?.invoke(targetEp)
                                 }
                                 onRemoteSyncCallback?.invoke(state)
                             }
 
                             // 2. Check members list
-                            val memberList = room.members.values.toList()
+                            val memberList = room.members
                             for (member in memberList) {
                                 if (member.userId !in knownMemberIds) {
                                     knownMemberIds.add(member.userId)
@@ -472,32 +500,26 @@ object WatchTogetherManager {
                             }
                             onMembersUpdatedCallback?.invoke(memberList)
 
-                            // 3. Check for new chat messages
-                            val msg = room.lastMessage
-                            if (msg != null && msg.id != lastSeenMessageId) {
-                                lastSeenMessageId = msg.id
-                                if (msg.senderId != myUserId) {
-                                    onNewMessageCallback?.invoke(msg)
-                                }
-                            }
-
-                            // 4. Check for new voice messages
-                            val voice = room.lastVoice
-                            if (voice != null && voice.id != lastSeenVoiceId) {
-                                lastSeenVoiceId = voice.id
-                                if (voice.senderId != myUserId) {
-                                    onNewVoiceCallback?.invoke(voice)
+                            // 3. Check for messages (full chat history sync)
+                            val messages = room.messages
+                            if (messages.size != chatHistory.size || messages.lastOrNull()?.id != chatHistory.lastOrNull()?.id) {
+                                val latest = messages.lastOrNull()
+                                chatHistory.clear()
+                                chatHistory.addAll(messages)
+                                onChatHistoryUpdatedCallback?.invoke(chatHistory.toList())
+                                if (latest != null && latest.id != lastSeenMessageId && latest.senderId != myUserId) {
+                                    lastSeenMessageId = latest.id
+                                    onNewMessageCallback?.invoke(latest)
                                 }
                             }
                         }
-                    } else if (text == "null" && !isHost) {
-                        // Room was closed / deleted by host
+                    } else if (res.code == 404 && !isHost) {
                         leaveRoom()
                         onRoomClosedCallback?.invoke()
                         break
                     }
                 } catch (e: Throwable) {
-                    // Retry silently on network hiccups
+                    // Retry silently on temporary connection blips
                 }
             }
         }
@@ -532,7 +554,7 @@ object WatchTogetherManager {
                 binding.tvCurrentRoomCode.text = currentRoomId ?: ""
 
                 // Members
-                val members = currentRoom?.members?.values?.toList() ?: emptyList()
+                val members = currentRoom?.members ?: emptyList()
                 binding.tvMembersCount.text = "${members.size} online"
                 val membersFormatted = members.joinToString(", ") { m ->
                     if (m.isHost) "👑 ${m.name} (Host)" else m.name

@@ -85,8 +85,10 @@ import com.lagradost.cloudstream3.ui.player.source_priority.ProfileSettings
 import com.lagradost.cloudstream3.ui.player.source_priority.QualityDataHelper
 import com.lagradost.cloudstream3.ui.player.source_priority.QualityDataHelper.getLinkPriority
 import com.lagradost.cloudstream3.ui.player.source_priority.QualityProfileDialog
+import com.lagradost.cloudstream3.ui.download.DownloadClickEvent
 import com.lagradost.cloudstream3.ui.result.ACTION_CLICK_DEFAULT
 import com.lagradost.cloudstream3.ui.result.EpisodeAdapter
+import com.lagradost.cloudstream3.ui.result.EpisodeClickEvent
 import com.lagradost.cloudstream3.ui.result.FOCUS_SELF
 import com.lagradost.cloudstream3.ui.result.ResultEpisode
 import com.lagradost.cloudstream3.ui.result.ResultFragment
@@ -108,6 +110,7 @@ import com.lagradost.cloudstream3.utils.AppContextUtils.html
 import com.lagradost.cloudstream3.utils.AppContextUtils.sortSubs
 import com.lagradost.cloudstream3.utils.Coroutines.ioSafe
 import com.lagradost.cloudstream3.utils.Coroutines.runOnMainThread
+import com.lagradost.cloudstream3.utils.ImageLoader.loadImage
 import com.lagradost.cloudstream3.utils.DataStoreHelper
 import com.lagradost.cloudstream3.utils.DataStoreHelper.getViewPos
 import com.lagradost.cloudstream3.utils.ExtractorLink
@@ -191,7 +194,8 @@ class GeneratorPlayer : FullScreenPlayer() {
 
     private var preferredAutoSelectSubtitles: String? = null // null means do nothing, "" means none
     private val allMeta: List<ResultEpisode>?
-        get() = viewModel.state.generatorState?.allMeta?.filterIsInstance<ResultEpisode>()
+        get() = (viewModel.state.generatorState?.allMeta?.filterIsInstance<ResultEpisode>()
+            ?: (viewModel.generator as? VideoGenerator<*>)?.videos?.filterIsInstance<ResultEpisode>())
             ?.map { episode ->
                 // Refresh all the episodes watch duration
                 getViewPos(episode.id)?.let { data ->
@@ -504,6 +508,7 @@ class GeneratorPlayer : FullScreenPlayer() {
         isPlayerActive.set(true)
         // manage UI
         binding?.playerLoadingOverlay?.isVisible = false
+        stopOverlayLogoPulseAnimation(binding?.root?.findViewById(R.id.overlay_loading_logo))
         val isTorrent =
             link.first?.type == ExtractorLinkType.MAGNET || link.first?.type == ExtractorLinkType.TORRENT
 
@@ -1633,6 +1638,7 @@ class GeneratorPlayer : FullScreenPlayer() {
         }
         loadLink(firstAvailableLink, false)
         showPlayerMetadata()
+        populatePortraitEpisodes()
     }
 
     private fun showPlayerMetadata() {
@@ -1678,7 +1684,62 @@ class GeneratorPlayer : FullScreenPlayer() {
             descView.text = description.html()
         } else {
             descView.isVisible = false
+        }
 
+        // Asynchronously fetch high quality clean Title Logo & extra info from TMDB
+        ioSafe {
+            val mediaInfo = TmdbMetadataHelper.fetchMediaInfo(load.name)
+            activity?.runOnUiThread {
+                if (!isAdded || isDetached) return@runOnUiThread
+                val bestLogo = mediaInfo?.logoUrl ?: load.logoUrl
+                if (!bestLogo.isNullOrBlank()) {
+                    load.logoUrl = bestLogo
+                    bindLogo(
+                        url = bestLogo,
+                        headers = load.posterHeaders,
+                        titleView = titleView,
+                        logoView = logoView
+                    )
+                    // Set small buffering logo in player center
+                    playerHostView?.playerBufferingLogo?.let { bufLogo ->
+                        bufLogo.loadImage(bestLogo)
+                        if (currentPlayerStatus == CSPlayerLoading.IsBuffering) {
+                            playerHostView?.playerBuffering?.isVisible = false
+                            bufLogo.isVisible = true
+                            playerHostView?.startLogoPulseAnimation()
+                        }
+                    }
+                } else {
+                    // No logo found from TMDB / AniList: fallback to normal loading circle
+                    playerHostView?.playerBufferingLogo?.setImageDrawable(null)
+                    playerHostView?.playerBufferingLogo?.isVisible = false
+                    if (currentPlayerStatus == CSPlayerLoading.IsBuffering) {
+                        playerHostView?.stopLogoPulseAnimation()
+                        playerHostView?.playerBuffering?.isVisible = true
+                    }
+                }
+
+                // If TMDB has a rating and load had no rating
+                if (mediaInfo?.rating != null && load.score == null) {
+                    val updatedMeta = listOfNotNull(
+                        load.tags?.takeIf { it.isNotEmpty() }?.take(4)?.joinToString(", "),
+                        mediaInfo.year ?: load.year?.toString(),
+                        if (!load.type.isMovieType()) context?.getShortSeasonText(
+                            episode = episode?.episode,
+                            season = episode?.season
+                        ) else null,
+                        "⭐ ${mediaInfo.rating}"
+                    ).joinToString(" • ")
+                    metaView.text = updatedMeta
+                    metaView.isVisible = updatedMeta.isNotBlank()
+                }
+
+                // If synopsis was blank, use TMDB synopsis
+                if (descView.text.isNullOrBlank() && !mediaInfo?.overview.isNullOrBlank()) {
+                    descView.isVisible = true
+                    descView.text = mediaInfo?.overview?.html()
+                }
+            }
         }
     }
 
@@ -1788,6 +1849,7 @@ class GeneratorPlayer : FullScreenPlayer() {
     }
 
     override fun onDestroy() {
+        stopOverlayLogoPulseAnimation(binding?.root?.findViewById(R.id.overlay_loading_logo))
         ResultFragment.updateUI()
         currentVerifyLink?.cancel()
         super.onDestroy()
@@ -2122,6 +2184,7 @@ class GeneratorPlayer : FullScreenPlayer() {
     override fun playerDimensionsLoaded(width: Int, height: Int) {
         super.playerDimensionsLoaded(width, height)
         setPlayerDimen(width to height)
+        populatePortraitEpisodes()
     }
 
     private fun unwrapBundle(savedInstanceState: Bundle?) {
@@ -2219,44 +2282,52 @@ class GeneratorPlayer : FullScreenPlayer() {
     override fun showEpisodesOverlay() {
         try {
             playerBinding?.apply {
-                playerEpisodeList.setRecycledViewPool(EpisodeAdapter.sharedPool)
-                playerEpisodeList.adapter = EpisodeAdapter(
-                    false,
-                    { episodeClick ->
-                        if (episodeClick.action == ACTION_CLICK_DEFAULT) {
-                            isNextEpisode = false
-                            releasePlayer()
-                            playerEpisodeOverlay.isGone = true
-                            episodeClick.position?.let {
-                                viewModel.loadThisEpisode(it)
-                                if (WatchTogetherManager.isInRoom && WatchTogetherManager.isHost) {
-                                    WatchTogetherManager.broadcastPlayback(
-                                        isPlaying = true,
-                                        position = 0L,
-                                        episodeIndex = it
-                                    )
-                                }
+                val onEpisodeSelected: (EpisodeClickEvent) -> Unit = { episodeClick ->
+                    if (episodeClick.action == ACTION_CLICK_DEFAULT) {
+                        isNextEpisode = false
+                        releasePlayer()
+                        playerEpisodeOverlay.isGone = true
+                        playerHorizontalEpisodesContainer.isGone = true
+                        episodeClick.position?.let {
+                            viewModel.loadThisEpisode(it)
+                            if (WatchTogetherManager.isInRoom && WatchTogetherManager.isHost) {
+                                WatchTogetherManager.changeEpisode(it)
+                                WatchTogetherManager.broadcastPlayback(
+                                    isPlaying = true,
+                                    position = 0L,
+                                    episodeIndex = it
+                                )
                             }
                         }
-                    },
-                    { downloadClickEvent ->
-                        DownloadButtonSetup.handleDownloadClick(downloadClickEvent)
                     }
-                )
-                playerEpisodeList.setLinearListLayout(
-                    isHorizontal = false,
-                    nextUp = FOCUS_SELF,
-                    nextDown = FOCUS_SELF,
-                    nextRight = FOCUS_SELF,
-                )
-                val episodes = allMeta ?: emptyList()
-                (playerEpisodeList.adapter as? EpisodeAdapter)?.submitList(episodes)
+                }
 
-                // Scroll to current episode
-                viewModel.state.generatorState?.index?.let { index ->
-                    playerEpisodeList.scrollToPosition(index)
-                    // Ensure focus on tv
-                    if (isLayout(TV)) {
+                val downloadHandler: (DownloadClickEvent) -> Unit = { downloadClickEvent ->
+                    DownloadButtonSetup.handleDownloadClick(downloadClickEvent)
+                }
+
+                val episodes = allMeta ?: emptyList()
+
+                if (isLayout(TV or EMULATOR)) {
+                    playerHorizontalEpisodesContainer.isGone = true
+                    // 1. Vertical Overlay Episode List (TV / Desktop)
+                    playerEpisodeList.setRecycledViewPool(EpisodeAdapter.sharedPool)
+                    playerEpisodeList.adapter = EpisodeAdapter(
+                        false,
+                        onEpisodeSelected,
+                        downloadHandler
+                    )
+                    playerEpisodeList.setLinearListLayout(
+                        isHorizontal = false,
+                        nextUp = FOCUS_SELF,
+                        nextDown = FOCUS_SELF,
+                        nextRight = FOCUS_SELF,
+                    )
+                    (playerEpisodeList.adapter as? EpisodeAdapter)?.submitList(episodes)
+
+                    // Scroll to current episode
+                    viewModel.state.generatorState?.index?.let { index ->
+                        playerEpisodeList.scrollToPosition(index)
                         playerEpisodeList.post {
                             val viewHolder =
                                 playerEpisodeList.findViewHolderForAdapterPosition(index)
@@ -2267,33 +2338,212 @@ class GeneratorPlayer : FullScreenPlayer() {
                             }
                         }
                     }
-                }
 
-                // update overlay season title
-                var lastTopIndex = -1
-                playerEpisodeList.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-                    override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                        val layoutManager =
-                            recyclerView.layoutManager as? LinearLayoutManager ?: return
-                        val topIndex = layoutManager.findFirstCompletelyVisibleItemPosition()
-                        if (topIndex != RecyclerView.NO_POSITION && topIndex != lastTopIndex) {
-                            @Suppress("AssignedValueIsNeverRead")
-                            lastTopIndex = topIndex
-                            val topItem = episodes.getOrNull(topIndex)
-                            topItem?.let {
-                                playerEpisodeOverlayTitle.setText(
-                                    ResultViewModel2.seasonToTxt(
-                                        topItem.seasonData,
-                                        topItem.seasonIndex
+                    // update overlay season title
+                    var lastTopIndex = -1
+                    playerEpisodeList.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+                        override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                            val layoutManager =
+                                recyclerView.layoutManager as? LinearLayoutManager ?: return
+                            val topIndex = layoutManager.findFirstCompletelyVisibleItemPosition()
+                            if (topIndex != RecyclerView.NO_POSITION && topIndex != lastTopIndex) {
+                                @Suppress("AssignedValueIsNeverRead")
+                                lastTopIndex = topIndex
+                                val topItem = episodes.getOrNull(topIndex)
+                                topItem?.let {
+                                    playerEpisodeOverlayTitle.setText(
+                                        ResultViewModel2.seasonToTxt(
+                                            topItem.seasonData,
+                                            topItem.seasonIndex
+                                        )
                                     )
-                                )
+                                }
                             }
                         }
+                    })
+                } else {
+                    playerEpisodeOverlay.isGone = true
+                    // 2. Crunchyroll-style Horizontal Episode Slider Bar (Phone)
+                    rvHorizontalEpisodes.setRecycledViewPool(EpisodeAdapter.sharedPool)
+                    rvHorizontalEpisodes.adapter = EpisodeAdapter(
+                        false,
+                        onEpisodeSelected,
+                        downloadHandler
+                    )
+                    rvHorizontalEpisodes.setLinearListLayout(
+                        isHorizontal = true,
+                        nextUp = FOCUS_SELF,
+                        nextDown = FOCUS_SELF,
+                        nextRight = FOCUS_SELF,
+                    )
+                    (rvHorizontalEpisodes.adapter as? EpisodeAdapter)?.submitList(episodes)
+
+                    // 3. Update Host Sync Badge
+                    if (WatchTogetherManager.isInRoom) {
+                        tvHostSyncBadge.isVisible = true
+                        if (WatchTogetherManager.isHost) {
+                            tvHostSyncBadge.text = "HOST (Tap ep to sync room)"
+                            tvHostSyncBadge.setTextColor(0xFF10B981.toInt())
+                        } else {
+                            tvHostSyncBadge.text = "GUEST (Synced with Host)"
+                            tvHostSyncBadge.setTextColor(0xFF3B82F6.toInt())
+                        }
+                    } else {
+                        tvHostSyncBadge.isVisible = false
                     }
-                })
+
+                    // Scroll to current episode
+                    viewModel.state.generatorState?.index?.let { index ->
+                        rvHorizontalEpisodes.scrollToPosition(index)
+                    }
+
+                    populatePortraitEpisodes()
+                }
             }
         } catch (e: Exception) {
             logError(e)
+        }
+    }
+
+    override fun populatePortraitEpisodes() {
+        try {
+            val episodes = allMeta
+                ?: (viewModel.generator as? VideoGenerator<*>)?.videos?.filterIsInstance<ResultEpisode>()
+                ?: emptyList()
+            if (episodes.isEmpty()) return
+            val rv = binding?.rvPortraitEpisodes ?: return
+
+            val onEpisodeSelected: (EpisodeClickEvent) -> Unit = { episodeClick ->
+                if (episodeClick.action == ACTION_CLICK_DEFAULT) {
+                    isNextEpisode = false
+                    releasePlayer()
+                    playerBinding?.playerEpisodeOverlay?.isGone = true
+                    playerBinding?.playerHorizontalEpisodesContainer?.isGone = true
+                    episodeClick.position?.let {
+                        viewModel.loadThisEpisode(it)
+                        if (WatchTogetherManager.isInRoom && WatchTogetherManager.isHost) {
+                            WatchTogetherManager.changeEpisode(it)
+                            WatchTogetherManager.broadcastPlayback(
+                                isPlaying = true,
+                                position = 0L,
+                                episodeIndex = it
+                            )
+                        }
+                    }
+                }
+            }
+
+            val downloadHandler: (DownloadClickEvent) -> Unit = { downloadClickEvent ->
+                DownloadButtonSetup.handleDownloadClick(downloadClickEvent)
+            }
+
+            if (rv.adapter == null) {
+                rv.setRecycledViewPool(EpisodeAdapter.sharedPool)
+                rv.adapter = EpisodeAdapter(
+                    false,
+                    onEpisodeSelected,
+                    downloadHandler
+                )
+                rv.setLinearListLayout(
+                    isHorizontal = false,
+                    nextUp = FOCUS_SELF,
+                    nextDown = FOCUS_SELF,
+                    nextRight = FOCUS_SELF,
+                )
+            }
+            (rv.adapter as? EpisodeAdapter)?.submitList(episodes)
+            viewModel.state.generatorState?.index?.let { index ->
+                rv.scrollToPosition(index)
+            }
+        } catch (e: Exception) {
+            logError(e)
+        }
+    }
+
+    private var overlayLogoPulseAnimator: android.animation.AnimatorSet? = null
+
+    private fun startOverlayLogoPulseAnimation(logoView: ImageView) {
+        if (overlayLogoPulseAnimator?.isRunning == true) return
+        logoView.isVisible = true
+        logoView.alpha = 1.0f
+
+        val scaleX = android.animation.ObjectAnimator.ofFloat(logoView, "scaleX", 0.96f, 1.04f).apply {
+            duration = 1600
+            repeatMode = android.animation.ValueAnimator.REVERSE
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+        }
+        val scaleY = android.animation.ObjectAnimator.ofFloat(logoView, "scaleY", 0.96f, 1.04f).apply {
+            duration = 1600
+            repeatMode = android.animation.ValueAnimator.REVERSE
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+        }
+        val translationY = android.animation.ObjectAnimator.ofFloat(logoView, "translationY", -7f, 7f).apply {
+            duration = 1600
+            repeatMode = android.animation.ValueAnimator.REVERSE
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+        }
+
+        overlayLogoPulseAnimator = android.animation.AnimatorSet().apply {
+            playTogether(scaleX, scaleY, translationY)
+            start()
+        }
+    }
+
+    private fun stopOverlayLogoPulseAnimation(logoView: ImageView?) {
+        overlayLogoPulseAnimator?.cancel()
+        overlayLogoPulseAnimator = null
+        logoView?.apply {
+            scaleX = 1.0f
+            scaleY = 1.0f
+            translationY = 0f
+            alpha = 1.0f
+        }
+    }
+
+    private fun updateOverlayLoadingUI() {
+        val b = binding ?: return
+        val logoView = b.root.findViewById<ImageView>(R.id.overlay_loading_logo) ?: return
+        val mainLoad = b.mainLoad
+
+        val load = viewModel.state.generatorState?.response
+        val bestLogo = load?.logoUrl
+
+        if (!bestLogo.isNullOrBlank()) {
+            logoView.loadImage(bestLogo)
+            mainLoad.isVisible = false
+            logoView.isVisible = true
+            startOverlayLogoPulseAnimation(logoView)
+        } else {
+            val mediaTitle = load?.name ?: getCurrentMediaTitle()
+            if (!mediaTitle.isNullOrBlank()) {
+                ioSafe {
+                    val mediaInfo = TmdbMetadataHelper.fetchMediaInfo(mediaTitle)
+                    activity?.runOnUiThread {
+                        if (!isAdded || isDetached) return@runOnUiThread
+                        val tmdbLogo = mediaInfo?.logoUrl
+                        if (!tmdbLogo.isNullOrBlank()) {
+                            load?.logoUrl = tmdbLogo
+                            logoView.loadImage(tmdbLogo)
+                            mainLoad.isVisible = false
+                            logoView.isVisible = true
+                            startOverlayLogoPulseAnimation(logoView)
+                        } else {
+                            stopOverlayLogoPulseAnimation(logoView)
+                            logoView.setImageDrawable(null)
+                            logoView.isVisible = false
+                            mainLoad.isVisible = true
+                        }
+                    }
+                }
+            } else {
+                stopOverlayLogoPulseAnimation(logoView)
+                logoView.setImageDrawable(null)
+                logoView.isVisible = false
+                mainLoad.isVisible = true
+            }
         }
     }
 
@@ -2305,6 +2555,7 @@ class GeneratorPlayer : FullScreenPlayer() {
         isPlayerActive.set(false)
         binding?.overlayLoadingSkipButton?.isVisible = false
         binding?.playerLoadingOverlay?.isVisible = true
+        updateOverlayLoadingUI()
         viewModel.modifyState { setError(emptyList()) }
         uiReset()
     }
@@ -2383,6 +2634,8 @@ class GeneratorPlayer : FullScreenPlayer() {
             // Recreated view, so we need to recreate the
             loadLink(selectedLink, true)
         }
+        updateOverlayLoadingUI()
+        populatePortraitEpisodes()
 
         binding.overlayLoadingSkipButton.setOnClickListener {
             // Mark as "success" early
@@ -2451,33 +2704,17 @@ class GeneratorPlayer : FullScreenPlayer() {
             val sortedLinks = viewModel.state.sortLinks(currentQualityProfile)
             val usableLinks = sortedLinks.count { link -> link.shouldUseLink }
 
-            val turnVisible = usableLinks > 0 && viewModel.generator?.canSkipLoading == true
-            val wasGone = binding.overlayLoadingSkipButton.isGone
+            // Hide skip loading button so user never gets stuck waiting
+            binding.overlayLoadingSkipButton.isVisible = false
 
-            binding.overlayLoadingSkipButton.apply {
-                isVisible = turnVisible
-
-                if (usableLinks == 0) {
-                    setText(R.string.skip_loading)
-                } else {
-                    @SuppressLint("SetTextI18n")
-                    text = "${context.getString(R.string.skip_loading)} (${usableLinks})"
-                }
-            }
-
+            // Start playback IMMEDIATELY as soon as any usable link is found!
             safe {
-                if (!isPlayerActive.get() && viewModel.state.links.any { link ->
-                        getLinkPriority(currentQualityProfile, link.first) >=
-                                QualityDataHelper.AUTO_SKIP_PRIORITY
-                    }
-                ) {
+                if (!isPlayerActive.get() && usableLinks > 0) {
                     startPlayer()
                 }
             }
 
-            if (turnVisible && wasGone) {
-                binding.overlayLoadingSkipButton.requestFocus()
-            }
+            populatePortraitEpisodes()
         }
     }
 }

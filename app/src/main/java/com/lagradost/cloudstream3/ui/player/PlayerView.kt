@@ -182,6 +182,8 @@ class PlayerView @JvmOverloads constructor(
     var playerPausePlayHolderHolder: FrameLayout? = null
     var playerPausePlay: ImageView? = null
     var playerBuffering: ProgressBar? = null
+    var playerBufferingContainer: View? = null
+    var playerBufferingLogo: ImageView? = null
     /** The Media3/ExoPlayer [androidx.media3.ui.PlayerView] widget. */
     var exoPlayerView: androidx.media3.ui.PlayerView? = null
     var piphide: FrameLayout? = null
@@ -239,6 +241,8 @@ class PlayerView @JvmOverloads constructor(
         exoRewText = root.findViewById(R.id.exo_rew_text)
         piphide = root.findViewById(R.id.piphide)
         playerBuffering = root.findViewById(R.id.player_buffering)
+        playerBufferingContainer = root.findViewById(R.id.player_buffering_container)
+        playerBufferingLogo = root.findViewById(R.id.player_buffering_logo)
         playerCenterMenu = root.findViewById(R.id.player_center_menu)
         playerFfwd = root.findViewById(R.id.player_ffwd)
         playerFfwdHolder = root.findViewById(R.id.player_ffwd_holder)
@@ -563,6 +567,51 @@ class PlayerView @JvmOverloads constructor(
         else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
+    private var logoPulseAnimator: android.animation.AnimatorSet? = null
+
+    fun startLogoPulseAnimation() {
+        val logo = playerBufferingLogo ?: return
+        if (logoPulseAnimator?.isRunning == true) return
+
+        logo.isVisible = true
+        logo.alpha = 1.0f
+
+        val scaleX = android.animation.ObjectAnimator.ofFloat(logo, "scaleX", 0.96f, 1.04f).apply {
+            duration = 1600
+            repeatMode = android.animation.ValueAnimator.REVERSE
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+        }
+        val scaleY = android.animation.ObjectAnimator.ofFloat(logo, "scaleY", 0.96f, 1.04f).apply {
+            duration = 1600
+            repeatMode = android.animation.ValueAnimator.REVERSE
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+        }
+        val translationY = android.animation.ObjectAnimator.ofFloat(logo, "translationY", -7f, 7f).apply {
+            duration = 1600
+            repeatMode = android.animation.ValueAnimator.REVERSE
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+        }
+
+        logoPulseAnimator = android.animation.AnimatorSet().apply {
+            playTogether(scaleX, scaleY, translationY)
+            start()
+        }
+    }
+
+    fun stopLogoPulseAnimation() {
+        logoPulseAnimator?.cancel()
+        logoPulseAnimator = null
+        playerBufferingLogo?.apply {
+            scaleX = 1.0f
+            scaleY = 1.0f
+            translationY = 0f
+            alpha = 1.0f
+        }
+    }
+
     fun updateIsPlaying(wasPlaying: CSPlayerLoading, isPlaying: CSPlayerLoading) {
         val isPlayingRightNow = CSPlayerLoading.IsPlaying == isPlaying
         val isBuffering = CSPlayerLoading.IsBuffering == isPlaying
@@ -572,14 +621,28 @@ class PlayerView @JvmOverloads constructor(
 
         if (isBuffering) {
             playerPausePlayHolderHolder?.isVisible = false
-            playerBuffering?.isVisible = true
+            playerBufferingContainer?.isVisible = true
+            val hasLogo = playerBufferingLogo?.drawable != null
+            if (hasLogo) {
+                playerBuffering?.isVisible = false
+                playerBufferingLogo?.isVisible = true
+                startLogoPulseAnimation()
+            } else {
+                stopLogoPulseAnimation()
+                playerBufferingLogo?.isVisible = false
+                playerBuffering?.isVisible = true
+            }
         } else {
             playerPausePlayHolderHolder?.isVisible = true
             playerBuffering?.isVisible = false
+            playerBufferingContainer?.isVisible = false
+            playerBufferingLogo?.isVisible = false
+            stopLogoPulseAnimation()
 
             if (isPlaying == CSPlayerLoading.IsEnded && isLayout(PHONE)) {
                 playerPausePlay?.setImageResource(R.drawable.ic_baseline_replay_24)
             } else if (wasPlaying != isPlaying) {
+                val finalStaticRes = if (isPlayingRightNow) R.drawable.netflix_pause else R.drawable.netflix_play
                 playerPausePlay?.setImageResource(
                     if (isPlayingRightNow) R.drawable.play_to_pause else R.drawable.pause_to_play
                 )
@@ -592,9 +655,14 @@ class PlayerView @JvmOverloads constructor(
                 if (drawable is AnimatedVectorDrawableCompat) { drawable.start(); startedAnimation = true }
                 // Somehow the phone is wacked
                 if (!startedAnimation) {
-                    playerPausePlay?.setImageResource(
-                        if (isPlayingRightNow) R.drawable.netflix_pause else R.drawable.netflix_play
-                    )
+                    playerPausePlay?.setImageResource(finalStaticRes)
+                } else {
+                    playerPausePlay?.postDelayed({
+                        val currentPlaying = player.getIsPlaying()
+                        playerPausePlay?.setImageResource(
+                            if (currentPlaying) R.drawable.netflix_pause else R.drawable.netflix_play
+                        )
+                    }, 220L)
                 }
             } else {
                 playerPausePlay?.setImageResource(
@@ -744,9 +812,8 @@ class PlayerView @JvmOverloads constructor(
      */
     fun dynamicOrientation(): Int {
         if (isLayout(TV or EMULATOR)) return ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        return if (autoPlayerRotateEnabled && isVerticalOrientation)
-            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-        else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        // Start in PORTRAIT mode on mobile phones (YouTube / Crunchyroll style)
+        return ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
     }
 
     /** Event dispatch */

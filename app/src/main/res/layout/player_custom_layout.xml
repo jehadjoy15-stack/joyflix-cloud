@@ -13,6 +13,7 @@
         android:layout_height="match_parent"
         android:layout_marginTop="-10dp"
         android:background="@drawable/bg_player_metadata_scrim_netflix"
+        android:visibility="gone"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent">
@@ -23,19 +24,20 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:layout_gravity="center_vertical"
-            android:paddingStart="64dp"
+            android:paddingStart="56dp"
             android:paddingEnd="32dp"
-            android:paddingBottom="32dp">
+            android:paddingBottom="24dp">
 
             <!-- TITLE / LOGO -->
             <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="88dp">
+                android:layout_height="140dp">
 
                 <ImageView
                     android:id="@+id/player_movie_logo"
                     android:layout_width="wrap_content"
                     android:layout_height="match_parent"
+                    android:maxWidth="480dp"
                     android:adjustViewBounds="true"
                     android:scaleType="fitStart"
                     android:visibility="gone"
@@ -47,7 +49,7 @@
                     android:layout_height="wrap_content"
                     android:layout_gravity="center_vertical"
                     android:textColor="@android:color/white"
-                    android:textSize="30sp"
+                    android:textSize="36sp"
                     android:textStyle="bold"
                     android:maxLines="2"
                     android:ellipsize="end"
@@ -60,9 +62,11 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
+                android:maxWidth="440dp"
                 android:textColor="#B3FFFFFF"
                 android:textSize="14sp"
-                android:maxLines="2"
+                android:maxLines="1"
+                android:ellipsize="end"
                 tools:text="Animation • Action • Adventure • 2025 • ⭐ 7.6"/>
 
             <!-- SYNOPSIS -->
@@ -70,11 +74,13 @@
                 android:id="@+id/player_movie_overview"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:textColor="#E6FFFFFF"
-                android:textSize="16sp"
-                android:lineSpacingExtra="8dp"
-                android:maxLines="5"
+                android:layout_marginTop="12dp"
+                android:textColor="#D9FFFFFF"
+                android:textSize="14sp"
+                android:lineSpacingExtra="3dp"
+                android:maxLines="3"
+                android:maxWidth="440dp"
+                android:ellipsize="end"
                 tools:text="Brave rabbit cop Judy Hopps and her friend, the fox Nick Wilde, team up again to crack a new case."/>
 
         </LinearLayout>
@@ -129,6 +135,241 @@
             tools:text="Amazing scene right here!" />
     </LinearLayout>
 
+    <!-- Watch Together: Fullscreen Right Sidebar Chat -->
+    <LinearLayout
+        android:id="@+id/player_chat_bar_container"
+        android:layout_width="340dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        android:background="#E60D111A"
+        android:orientation="vertical"
+        android:elevation="20dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <!-- Header -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:background="#161B22"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="14dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_baseline_chat_24"
+                app:tint="?attr/colorPrimary" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="Watch Party Chat"
+                android:textColor="@android:color/white"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_sidebar_chat_room_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_player_chat_bubble"
+                android:textColor="?attr/colorPrimary"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="3dp"
+                android:layout_marginEnd="8dp"
+                tools:text="👑 Host" />
+
+            <ImageView
+                android:id="@+id/btn_sidebar_mic"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_marginEnd="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:padding="4dp"
+                android:src="@drawable/ic_baseline_mic_off_24"
+                app:tint="@android:color/white" />
+
+            <ImageView
+                android:id="@+id/btn_sidebar_chat_close"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:padding="4dp"
+                android:src="@drawable/ic_baseline_close_24"
+                app:tint="@android:color/white" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#1FFFFFFF" />
+
+        <!-- Chat messages RecyclerView -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rv_sidebar_chat_messages"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="8dp"
+                app:stackFromEnd="true"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+
+            <TextView
+                android:id="@+id/tv_sidebar_chat_empty"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center"
+                android:text="No messages yet.\nSay hello to everyone! 👋"
+                android:textColor="#60FFFFFF"
+                android:textSize="13sp"
+                android:visibility="gone"
+                tools:visibility="visible" />
+        </FrameLayout>
+
+        <!-- Quick emoji row -->
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="none"
+            android:background="#12161F"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="6dp">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/btn_quick_emoji_fire"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="7dp"
+                    android:text="🔥"
+                    android:textSize="18sp" />
+
+                <TextView
+                    android:id="@+id/btn_quick_emoji_laugh"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="7dp"
+                    android:text="😂"
+                    android:textSize="18sp" />
+
+                <TextView
+                    android:id="@+id/btn_quick_emoji_heart"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="7dp"
+                    android:text="❤️"
+                    android:textSize="18sp" />
+
+                <TextView
+                    android:id="@+id/btn_quick_emoji_shock"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="7dp"
+                    android:text="😱"
+                    android:textSize="18sp" />
+
+                <TextView
+                    android:id="@+id/btn_quick_emoji_clap"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="7dp"
+                    android:text="👏"
+                    android:textSize="18sp" />
+
+                <TextView
+                    android:id="@+id/btn_quick_emoji_popcorn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="7dp"
+                    android:text="🍿"
+                    android:textSize="18sp" />
+
+                <TextView
+                    android:id="@+id/btn_quick_emoji_thumbsup"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="7dp"
+                    android:text="👍"
+                    android:textSize="18sp" />
+
+                <TextView
+                    android:id="@+id/btn_quick_emoji_party"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="7dp"
+                    android:text="🎉"
+                    android:textSize="18sp" />
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#1FFFFFFF" />
+
+        <!-- Input row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:background="#161B22"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="6dp">
+
+            <EditText
+                android:id="@+id/et_player_chat_input"
+                android:layout_width="0dp"
+                android:layout_height="38dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_chat_input_border"
+                android:hint="@string/type_a_message"
+                android:imeOptions="actionSend"
+                android:inputType="textCapSentences|textShortMessage"
+                android:maxLines="1"
+                android:paddingStart="12dp"
+                android:paddingEnd="10dp"
+                android:textColor="@android:color/white"
+                android:textColorHint="#60FFFFFF"
+                android:textSize="13sp" />
+
+            <ImageView
+                android:id="@+id/btn_player_chat_send"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:layout_marginStart="6dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:padding="8dp"
+                android:src="@drawable/ic_baseline_send_24"
+                app:tint="?attr/colorPrimary" />
+        </LinearLayout>
+    </LinearLayout>
+
     <!-- Watch Together: Voice Speaking Indicator Bubble -->
     <LinearLayout
         android:id="@+id/player_voice_toast_container"
@@ -170,7 +411,7 @@
             android:text="@string/voice_speaking" />
     </LinearLayout>
 
-    <!-- Watch Together: Floating Button (Hidden) -->
+    <!-- Watch Together: Dedicated Floating Mic Button (Visible whenever in a room) -->
     <FrameLayout
         android:id="@+id/player_floating_mic_container"
         android:layout_width="wrap_content"
@@ -179,134 +420,21 @@
         android:layout_marginEnd="16dp"
         android:alpha="0.55"
         android:visibility="gone"
-        tools:visibility="gone">
+        tools:visibility="visible">
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/player_floating_mic"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:contentDescription="@string/watch_together"
-            android:src="@drawable/ic_baseline_people_24"
-            app:backgroundTint="#CC1C1C1E"
+            android:contentDescription="@string/voice_call"
+            android:src="@drawable/ic_baseline_mic_off_24"
+            app:backgroundTint="?attr/colorPrimary"
             app:tint="@android:color/white"
             app:fabSize="mini"
             app:elevation="4dp" />
     </FrameLayout>
 
-    <!-- Watch Together: Chat Input Bar Over Video -->
-    <LinearLayout
-        android:id="@+id/player_chat_bar_container"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:layout_marginBottom="90dp"
-        android:layout_marginHorizontal="24dp"
-        android:gravity="center_vertical"
-        android:orientation="vertical"
-        android:elevation="12dp"
-        android:visibility="gone"
-        tools:visibility="visible">
 
-        <!-- Quick emoji row -->
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="6dp"
-            android:background="@drawable/bg_player_chat_bubble"
-            android:orientation="horizontal"
-            android:paddingHorizontal="8dp"
-            android:paddingVertical="4dp">
-
-            <TextView
-                android:id="@+id/btn_quick_emoji_fire"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="8dp"
-                android:text="🔥"
-                android:textSize="18sp" />
-
-            <TextView
-                android:id="@+id/btn_quick_emoji_laugh"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="8dp"
-                android:text="😂"
-                android:textSize="18sp" />
-
-            <TextView
-                android:id="@+id/btn_quick_emoji_heart"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="8dp"
-                android:text="❤️"
-                android:textSize="18sp" />
-
-            <TextView
-                android:id="@+id/btn_quick_emoji_shock"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="8dp"
-                android:text="😱"
-                android:textSize="18sp" />
-
-            <TextView
-                android:id="@+id/btn_quick_emoji_clap"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="8dp"
-                android:text="👏"
-                android:textSize="18sp" />
-        </LinearLayout>
-
-        <!-- Input row -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="46dp"
-            android:background="@drawable/bg_player_chat_input_bar"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <EditText
-                android:id="@+id/et_player_chat_input"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:background="@null"
-                android:hint="@string/type_a_message"
-                android:imeOptions="actionSend|flagNoExtractUi"
-                android:inputType="textCapSentences|textShortMessage"
-                android:maxLines="1"
-                android:paddingStart="4dp"
-                android:paddingEnd="8dp"
-                android:textColor="@android:color/white"
-                android:textColorHint="#99FFFFFF"
-                android:textSize="14sp" />
-
-            <ImageView
-                android:id="@+id/btn_player_chat_mic"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:layout_marginEnd="4dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:clickable="true"
-                android:focusable="true"
-                android:padding="8dp"
-                android:src="@drawable/ic_baseline_mic_24"
-                android:visibility="gone"
-                app:tint="?attr/colorPrimary" />
-
-            <ImageView
-                android:id="@+id/btn_player_chat_send"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:clickable="true"
-                android:focusable="true"
-                android:padding="8dp"
-                android:src="@drawable/ic_baseline_send_24"
-                app:tint="?attr/colorPrimary" />
-        </LinearLayout>
-    </LinearLayout>
 
 
     <!--
@@ -621,24 +749,44 @@
 
             </FrameLayout>
 
-            <!--use for thinner app:trackThickness="3dp" com.google.android.material.progressindicator.CircularProgressIndicator-->
-            <ProgressBar
-                android:id="@+id/player_buffering"
+            <!-- Modern Logo-Only Buffering / Loading Indicator (No circle) -->
+            <!-- Modern Buffering / Loading Indicator (Logo pulse if available, otherwise circular spinner) -->
+            <FrameLayout
+                android:id="@+id/player_buffering_container"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-
-                android:clickable="false"
-                android:focusable="false"
-                android:focusableInTouchMode="false"
-
-                android:indeterminate="true"
                 android:visibility="gone"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintLeft_toLeftOf="parent"
                 app:layout_constraintRight_toRightOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
-                tools:visibility="visible" />
+                tools:visibility="visible">
+
+                <!-- Normal Circular Spinner (Fallback when no logo is available) -->
+                <ProgressBar
+                    android:id="@+id/player_buffering"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:layout_gravity="center"
+                    android:clickable="false"
+                    android:focusable="false"
+                    android:focusableInTouchMode="false"
+                    android:indeterminate="true"
+                    android:indeterminateTint="?attr/colorPrimary"
+                    android:visibility="gone" />
+
+                <!-- Pure Anime / Movie / Series Logo Pulse Animation -->
+                <ImageView
+                    android:id="@+id/player_buffering_logo"
+                    android:layout_width="160dp"
+                    android:layout_height="80dp"
+                    android:layout_gravity="center"
+                    android:adjustViewBounds="true"
+                    android:scaleType="fitCenter"
+                    android:visibility="gone"
+                    tools:visibility="visible" />
+            </FrameLayout>
 
 
 
@@ -1079,11 +1227,11 @@
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/player_lock"
                             style="@style/VideoButton"
+                            android:visibility="gone"
                             android:nextFocusLeft="@id/player_skip_episode"
                             android:nextFocusRight="@id/player_resize_btt"
                             android:text="@string/video_lock"
                             app:icon="@drawable/video_locked"
-
                             app:iconSize="30dp" />
 
                         <LinearLayout
@@ -1093,10 +1241,25 @@
                             android:orientation="horizontal">
 
                             <com.google.android.material.button.MaterialButton
-                                android:id="@+id/player_rotate_btt"
+                                android:id="@+id/player_skip_episode"
                                 style="@style/VideoButton"
                                 android:nextFocusLeft="@id/player_lock"
+                                android:nextFocusRight="@id/player_skip_op"
+                                android:text="@string/next_episode"
+                                app:icon="@drawable/ic_baseline_skip_next_24" />
 
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/player_skip_op"
+                                style="@style/VideoButton"
+                                android:nextFocusLeft="@id/player_skip_episode"
+                                android:nextFocusRight="@id/player_rotate_btt"
+                                android:text="@string/video_skip_op"
+                                app:icon="@drawable/ic_baseline_fast_forward_24" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/player_rotate_btt"
+                                style="@style/VideoButton"
+                                android:nextFocusLeft="@id/player_skip_op"
                                 android:nextFocusRight="@id/player_resize_btt"
                                 android:text="@string/rotate_video"
                                 app:icon="@drawable/screen_rotation" />
@@ -1105,7 +1268,6 @@
                                 android:id="@+id/player_resize_btt"
                                 style="@style/VideoButton"
                                 android:nextFocusLeft="@id/player_rotate_btt"
-
                                 android:nextFocusRight="@id/player_speed_btt"
                                 android:text="@string/video_aspect_ratio_resize"
                                 app:icon="@drawable/ic_baseline_aspect_ratio_24" />
@@ -1114,7 +1276,6 @@
                                 android:id="@+id/player_speed_btt"
                                 style="@style/VideoButton"
                                 android:nextFocusLeft="@id/player_resize_btt"
-
                                 android:nextFocusRight="@id/player_subtitle_offset_btt"
                                 app:icon="@drawable/ic_baseline_speed_24"
                                 tools:text="Speed" />
@@ -1125,7 +1286,6 @@
                                 android:nextFocusLeft="@id/player_speed_btt"
                                 android:nextFocusRight="@id/player_sources_btt"
                                 android:text="@string/subtitle_offset"
-
                                 android:visibility="gone"
                                 app:icon="@drawable/ic_outline_subtitles_24"
                                 tools:visibility="visible" />
@@ -1134,18 +1294,15 @@
                                 android:id="@+id/player_sources_btt"
                                 style="@style/VideoButton"
                                 android:layout_height="40dp"
-
                                 android:nextFocusLeft="@id/player_subtitle_offset_btt"
                                 android:nextFocusRight="@id/player_tracks_btt"
                                 android:text="@string/video_source"
                                 app:icon="@drawable/ic_baseline_playlist_play_24" />
 
-
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/player_tracks_btt"
                                 style="@style/VideoButton"
                                 android:layout_height="40dp"
-
                                 android:nextFocusLeft="@id/player_sources_btt"
                                 android:nextFocusRight="@id/player_watch_together_btt"
                                 android:text="@string/tracks"
@@ -1162,41 +1319,24 @@
                                 app:icon="@drawable/ic_baseline_people_24" />
 
                             <com.google.android.material.button.MaterialButton
-                                android:id="@+id/player_mic_btt"
-                                style="@style/VideoButton"
-                                android:layout_height="40dp"
-                                android:visibility="gone"
-                                android:nextFocusLeft="@id/player_watch_together_btt"
-                                android:nextFocusRight="@id/player_chat_btt"
-                                android:text="@string/voice_call"
-                                app:icon="@drawable/ic_baseline_mic_24" />
-
-                            <com.google.android.material.button.MaterialButton
                                 android:id="@+id/player_chat_btt"
                                 style="@style/VideoButton"
                                 android:layout_height="40dp"
                                 android:visibility="gone"
                                 android:nextFocusLeft="@id/player_watch_together_btt"
-                                android:nextFocusRight="@id/player_skip_op"
+                                android:nextFocusRight="@id/player_mic_btt"
                                 android:text="@string/chat"
                                 app:icon="@drawable/ic_baseline_chat_24" />
 
                             <com.google.android.material.button.MaterialButton
-                                android:id="@+id/player_skip_op"
+                                android:id="@+id/player_mic_btt"
                                 style="@style/VideoButton"
-                                android:nextFocusLeft="@id/player_watch_together_btt"
-
+                                android:layout_height="40dp"
+                                android:visibility="gone"
+                                android:nextFocusLeft="@id/player_chat_btt"
                                 android:nextFocusRight="@id/player_skip_episode"
-                                android:text="@string/video_skip_op"
-                                app:icon="@drawable/ic_baseline_fast_forward_24" />
-
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/player_skip_episode"
-                                style="@style/VideoButton"
-                                android:nextFocusLeft="@id/player_skip_op"
-                                android:nextFocusRight="@id/player_lock"
-                                android:text="@string/next_episode"
-                                app:icon="@drawable/ic_baseline_skip_next_24" />
+                                android:text="@string/voice_call"
+                                app:icon="@drawable/ic_baseline_mic_24" />
 
                         </LinearLayout>
                     </LinearLayout>
@@ -1382,6 +1522,76 @@
             android:layout_marginTop="5dp"
             android:text="@string/episodes"
             android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- Crunchyroll-style Horizontal Episode Slider Bar -->
+    <LinearLayout
+        android:id="@+id/player_horizontal_episodes_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="#E60D111A"
+        android:orientation="vertical"
+        android:paddingTop="6dp"
+        android:paddingBottom="10dp"
+        android:elevation="18dp"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="16dp"
+            android:layout_marginBottom="6dp">
+
+            <TextView
+                android:id="@+id/tv_horizontal_episodes_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/episodes"
+                android:textColor="@android:color/white"
+                android:textStyle="bold"
+                android:textSize="14sp" />
+
+            <!-- Host Sync Indicator Badge -->
+            <TextView
+                android:id="@+id/tv_host_sync_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="#33F59E0B"
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="2dp"
+                android:text="👑 Host: Tap to sync room"
+                android:textColor="#F59E0B"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                tools:visibility="visible" />
+
+            <ImageView
+                android:id="@+id/btn_horizontal_episodes_close"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_marginStart="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:padding="4dp"
+                android:src="@drawable/ic_baseline_close_24"
+                app:tint="@android:color/white" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_horizontal_episodes"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:clipToPadding="false"
+            android:paddingHorizontal="12dp"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
     </LinearLayout>
 
     <LinearLayout

@@ -46,15 +46,21 @@ import com.google.android.material.button.MaterialButton
 import com.lagradost.cloudstream3.CommonActivity.keyEventListener
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.R
+import androidx.constraintlayout.widget.ConstraintSet
 import com.lagradost.cloudstream3.databinding.DialogWatchTogetherBinding
 import com.lagradost.cloudstream3.databinding.FragmentPlayerBinding
+import com.lagradost.cloudstream3.databinding.ItemPlayerPortraitChatBinding
 import com.lagradost.cloudstream3.databinding.PlayerCustomLayoutBinding
 import com.lagradost.cloudstream3.databinding.SpeedDialogBinding
 import com.lagradost.cloudstream3.databinding.SubtitleOffsetBinding
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.lagradost.cloudstream3.CommonActivity.showToast
 import com.lagradost.cloudstream3.utils.Coroutines.ioSafe
 import com.lagradost.cloudstream3.utils.UIHelper.clipboardHelper
 import com.lagradost.cloudstream3.utils.WatchTogetherManager
+import com.lagradost.cloudstream3.utils.WatchTogetherVoiceHelper
 import kotlin.math.abs
 import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.ui.player.GeneratorPlayer.Companion.subsProvidersIsActive
@@ -79,6 +85,48 @@ import com.lagradost.cloudstream3.utils.txt
 import kotlin.math.roundToInt
 
 private const val SUBTITLE_DELAY_BUNDLE_KEY = "subtitle_delay"
+
+class PortraitChatAdapter : androidx.recyclerview.widget.RecyclerView.Adapter<PortraitChatAdapter.ViewHolder>() {
+    private var items: List<WatchTogetherManager.ChatMessage> = emptyList()
+
+    fun submitList(newItems: List<WatchTogetherManager.ChatMessage>) {
+        items = newItems
+        notifyDataSetChanged()
+    }
+
+    class ViewHolder(val itemBinding: ItemPlayerPortraitChatBinding) :
+        androidx.recyclerview.widget.RecyclerView.ViewHolder(itemBinding.root)
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val binding = ItemPlayerPortraitChatBinding.inflate(
+            LayoutInflater.from(parent.context),
+            parent,
+            false
+        )
+        return ViewHolder(binding)
+    }
+
+    override fun getItemCount(): Int = items.size
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        val item = items[position]
+        holder.itemBinding.tvChatSender.text = "${item.senderName}:"
+        holder.itemBinding.tvChatText.text = item.text
+        try {
+            val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(item.timestamp))
+            holder.itemBinding.tvChatTime.text = timeStr
+        } catch (_: Exception) {
+            holder.itemBinding.tvChatTime.text = ""
+        }
+
+        val hostName = WatchTogetherManager.currentRoom?.hostName
+        if (!hostName.isNullOrBlank() && item.senderName == hostName) {
+            holder.itemBinding.tvChatSender.setTextColor(0xFFF59E0B.toInt()) // Gold for host
+        } else {
+            holder.itemBinding.tvChatSender.setTextColor(0xFF3B82F6.toInt()) // Blue
+        }
+    }
+}
 
 // All the UI Logic for the player
 @OptIn(UnstableApi::class)
@@ -197,12 +245,6 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             return
         }
 
-        if (isLayout(PHONE)) {
-            metadataScrim.isVisible = false
-            metadataVisibilityToken++
-            return
-        }
-
         val isPaused = currentPlayerStatus == CSPlayerLoading.IsPaused
         val token = ++metadataVisibilityToken
 
@@ -218,14 +260,19 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 if (isDialogOpen()) return@postDelayed
 
                 metadataScrim.alpha = 0f
+                playerBinding?.playerMetadataOverlay?.translationY = -25.toPx.toFloat()
                 metadataScrim.isVisible = true
                 metadataScrim.animate()
                     .alpha(1f)
-                    .setDuration(500L)
+                    .setDuration(400L)
                     .setInterpolator(DecelerateInterpolator())
                     .start()
-                hidePlayerUI()
-            }, 8000L)
+                playerBinding?.playerMetadataOverlay?.animate()
+                    ?.translationY(0f)
+                    ?.setDuration(400L)
+                    ?.setInterpolator(DecelerateInterpolator())
+                    ?.start()
+            }, 1000L)
         } else {
             if (metadataScrim.isVisible) {
                 metadataScrim.animate()
@@ -233,20 +280,33 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                     .setDuration(300L)
                     .setInterpolator(AccelerateDecelerateInterpolator())
                     .withEndAction {
-                        metadataScrim.alpha = 0f      // force final state
+                        metadataScrim.alpha = 0f
                         metadataScrim.isVisible = false
                     }
                     .start()
+                playerBinding?.playerMetadataOverlay?.animate()
+                    ?.translationY(-25.toPx.toFloat())
+                    ?.setDuration(300L)
+                    ?.setInterpolator(AccelerateDecelerateInterpolator())
+                    ?.start()
             }
         }
     }
 
     override fun onDestroyView() {
-        hideChatToastRunnable?.let { playerBinding?.playerChatToastContainer?.removeCallbacks(it) }
-        hideChatToastRunnable = null
-        WatchTogetherManager.setOnNewMessageListener(null)
         WatchTogetherManager.setOnRemoteSyncListener(null)
         WatchTogetherManager.setOnRoomClosedListener(null)
+        WatchTogetherManager.setOnEpisodeChangedListener(null)
+        WatchTogetherManager.setOnChatHistoryUpdatedListener(null)
+        WatchTogetherManager.setOnNewMessageListener(null)
+        hideChatToastRunnable?.let { playerBinding?.playerChatToastContainer?.removeCallbacks(it) }
+        hideChatToastRunnable = null
+        voiceHelper?.release()
+        voiceHelper = null
+        currentDialogVoiceUpdater = null
+        hideVoiceToastRunnable?.let { playerBinding?.playerVoiceToastContainer?.removeCallbacks(it) }
+        hideVoiceToastRunnable = null
+        WatchTogetherManager.setOnNewVoiceListener(null)
         WatchTogetherManager.leaveRoom()
         selectWatchTogetherDialog?.dismissSafe(activity)
         selectWatchTogetherDialog = null
@@ -341,7 +401,8 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 it.animateY(titleMove)
             }
 
-            playerMetadataScrim.animateY(1f)
+            val metaMove = if (isShowing) 0f else -30.toPx.toFloat()
+            playerMetadataOverlay.animateY(metaMove)
 
             val playerBarMove = if (isShowing) 0f else 50.toPx.toFloat()
             bottomPlayerBar.animateY(playerBarMove)
@@ -443,6 +504,10 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
     private fun updateOrientation(ignoreDynamicOrientation: Boolean = false) {
         activity?.apply {
+            if (isLayout(TV or EMULATOR)) {
+                this.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                return@apply
+            }
             if (lockRotation) {
                 if (isLocked) {
                     lockOrientation(this)
@@ -741,6 +806,9 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         WatchTogetherManager.setOnRemoteSyncListener { state ->
             activity?.runOnUiThread {
                 if (!isAdded || isDetached) return@runOnUiThread
+                // CRITICAL: The Host controls playback, so Host must NEVER be remotely synced!
+                if (WatchTogetherManager.isHost) return@runOnUiThread
+
                 val p = player
                 WatchTogetherManager.isApplyingRemoteSync = true
                 try {
@@ -774,11 +842,23 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             }
         }
 
+        WatchTogetherManager.setOnEpisodeChangedListener { remoteEpisode ->
+            activity?.runOnUiThread {
+                if (!isAdded || isDetached) return@runOnUiThread
+                if (!WatchTogetherManager.isHost) {
+                    val currentEpisode = getCurrentEpisodeIndex()
+                    if (currentEpisode != null && currentEpisode != remoteEpisode) {
+                        loadEpisodeByIndex(remoteEpisode)
+                    }
+                }
+            }
+        }
+
         WatchTogetherManager.setOnRoomClosedListener {
             activity?.runOnUiThread {
                 if (!isAdded || isDetached) return@runOnUiThread
-                playerBinding?.playerChatBtt?.isGone = true
                 showToast(R.string.leave_room)
+                updatePortraitRoomTabs()
             }
         }
 
@@ -789,8 +869,46 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             }
         }
 
+        val ctx = context ?: activity
+        if (ctx != null && voiceHelper == null) {
+            voiceHelper = WatchTogetherVoiceHelper(ctx.applicationContext)
+        }
+
+        WatchTogetherManager.setOnNewVoiceListener { voice ->
+            activity?.runOnUiThread {
+                if (!isAdded || isDetached) return@runOnUiThread
+                showVoiceSpeakingToast(voice.senderName)
+                if (!isDuckingVolume) {
+                    originalPlayerVolume = player.getVolume() ?: 1.0f
+                    player.setVolume(0.15f)
+                    isDuckingVolume = true
+                }
+                voiceHelper?.enqueueVoice(
+                    base64Audio = voice.audioBase64,
+                    onStart = {
+                        activity?.runOnUiThread {
+                            if (!isAdded || isDetached) return@runOnUiThread
+                            showVoiceSpeakingToast(voice.senderName)
+                        }
+                    },
+                    onAllComplete = {
+                        activity?.runOnUiThread {
+                            if (!isAdded || isDetached) return@runOnUiThread
+                            if (isDuckingVolume) {
+                                player.setVolume(originalPlayerVolume)
+                                isDuckingVolume = false
+                            }
+                            hideVoiceSpeakingToast()
+                        }
+                    }
+                )
+            }
+        }
+
         WatchTogetherManager.setOnNewMessageListener { msg ->
-            showChatMessageToast(msg.senderName, msg.text)
+            if (playerBinding?.playerChatBarContainer?.isVisible != true) {
+                showChatMessageToast(msg.senderName, msg.text)
+            }
         }
     }
 
@@ -812,7 +930,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 .setDuration(200)
                 .start()
 
-            // Display for exactly 2 seconds as requested by user
+            // Display for exactly 2 seconds
             val runnable = Runnable {
                 b.playerChatToastContainer.animate()
                     .alpha(0f)
@@ -827,21 +945,44 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         }
     }
 
-    private fun toggleChatBar() {
+    private fun toggleChatBar(forceShow: Boolean? = null) {
         val b = playerBinding ?: return
-        if (b.playerChatBarContainer.isVisible) {
-            val imm = b.root.context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-            imm?.hideSoftInputFromWindow(b.etPlayerChatInput.windowToken, 0)
-            b.playerChatBarContainer.animate().alpha(0f).setDuration(200).withEndAction {
-                b.playerChatBarContainer.isVisible = false
-            }.start()
-        } else {
+        val show = forceShow ?: !b.playerChatBarContainer.isVisible
+        if (show) {
+            fullscreenChatAdapter?.submitList(WatchTogetherManager.chatHistory.toList())
+            b.tvSidebarChatEmpty.isVisible = WatchTogetherManager.chatHistory.isEmpty()
+            if (WatchTogetherManager.chatHistory.isNotEmpty()) {
+                b.rvSidebarChatMessages.scrollToPosition(WatchTogetherManager.chatHistory.size - 1)
+            }
+            b.tvSidebarChatRoomBadge.isVisible = WatchTogetherManager.isInRoom
+            if (WatchTogetherManager.isInRoom) {
+                b.tvSidebarChatRoomBadge.text = if (WatchTogetherManager.isHost) "👑 Host" else "● Connected"
+            }
+
+            b.playerChatBarContainer.animate().cancel()
+            val offset = (b.playerChatBarContainer.width.takeIf { it > 0 } ?: 340).toFloat() * b.playerChatBarContainer.resources.displayMetrics.density
+            b.playerChatBarContainer.translationX = offset
             b.playerChatBarContainer.alpha = 0f
             b.playerChatBarContainer.isVisible = true
-            b.playerChatBarContainer.animate().alpha(1f).setDuration(200).start()
+            b.playerChatBarContainer.animate()
+                .translationX(0f)
+                .alpha(1f)
+                .setDuration(260)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
             b.etPlayerChatInput.requestFocus()
-            val imm = b.root.context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-            imm?.showSoftInput(b.etPlayerChatInput, InputMethodManager.SHOW_IMPLICIT)
+        } else {
+            b.playerChatBarContainer.animate().cancel()
+            val offset = (b.playerChatBarContainer.width.takeIf { it > 0 } ?: 340).toFloat() * b.playerChatBarContainer.resources.displayMetrics.density
+            b.playerChatBarContainer.animate()
+                .translationX(offset)
+                .alpha(0f)
+                .setDuration(200)
+                .setInterpolator(AccelerateDecelerateInterpolator())
+                .withEndAction {
+                    b.playerChatBarContainer.isVisible = false
+                }
+                .start()
         }
     }
 
@@ -851,13 +992,188 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         if (text.isBlank()) return
         val act = activity ?: return
         val senderNick = WatchTogetherManager.getSavedNickname(act).ifBlank {
-            WatchTogetherManager.currentRoom?.members?.get(WatchTogetherManager.myUserId)?.name
-                ?: WatchTogetherManager.pendingHostNickname
-                ?: "User"
+            WatchTogetherManager.pendingHostNickname ?: "User"
         }
         b.etPlayerChatInput.setText("")
         WatchTogetherManager.sendMessage(text, senderNick)
     }
+
+    var voiceHelper: WatchTogetherVoiceHelper? = null
+    private var hideVoiceToastRunnable: Runnable? = null
+    private var isDuckingVolume = false
+    private var originalPlayerVolume = 1.0f
+
+    private fun showVoiceSpeakingToast(speakerName: String) {
+        val b = playerBinding ?: return
+        hideVoiceToastRunnable?.let { b.playerVoiceToastContainer.removeCallbacks(it) }
+
+        b.playerVoiceSpeakerName.text = "$speakerName: "
+        b.playerVoiceStatusText.text = getString(R.string.voice_speaking)
+
+        b.playerVoiceToastContainer.alpha = 0f
+        b.playerVoiceToastContainer.isVisible = true
+        b.playerVoiceToastContainer.animate()
+            .alpha(1f)
+            .setDuration(200)
+            .start()
+
+        val runnable = Runnable {
+            b.playerVoiceToastContainer.animate()
+                .alpha(0f)
+                .setDuration(300)
+                .withEndAction {
+                    b.playerVoiceToastContainer.isVisible = false
+                }
+                .start()
+        }
+        hideVoiceToastRunnable = runnable
+        b.playerVoiceToastContainer.postDelayed(runnable, 3500L)
+    }
+
+    private fun hideVoiceSpeakingToast() {
+        val b = playerBinding ?: return
+        hideVoiceToastRunnable?.let { b.playerVoiceToastContainer.removeCallbacks(it) }
+        b.playerVoiceToastContainer.animate()
+            .alpha(0f)
+            .setDuration(300)
+            .withEndAction {
+                b.playerVoiceToastContainer.isVisible = false
+            }
+            .start()
+    }
+
+    private var currentDialogVoiceUpdater: ((Boolean) -> Unit)? = null
+
+    private fun updateMicUI(isMicOn: Boolean) {
+        currentDialogVoiceUpdater?.invoke(isMicOn)
+        val b = playerBinding ?: return
+        val activeColor = Color.parseColor("#FF3344")
+        if (isMicOn) {
+            b.playerMicBtt.iconTint = ColorStateList.valueOf(activeColor)
+            b.playerMicBtt.setIconResource(R.drawable.ic_baseline_mic_24)
+            b.playerMicBtt.text = getString(R.string.mic_on)
+            b.btnSidebarMic.setColorFilter(activeColor)
+            b.btnSidebarMic.setImageResource(R.drawable.ic_baseline_mic_24)
+            b.playerFloatingMic.backgroundTintList = ColorStateList.valueOf(activeColor)
+            b.playerFloatingMic.setImageResource(R.drawable.ic_baseline_mic_24)
+            b.playerFloatingMicContainer.animate().alpha(0.85f).setDuration(150).start()
+        } else {
+            val whiteColor = ContextCompat.getColor(b.root.context, R.color.white)
+            b.playerMicBtt.iconTint = ColorStateList.valueOf(whiteColor)
+            b.playerMicBtt.setIconResource(R.drawable.ic_baseline_mic_off_24)
+            b.playerMicBtt.text = getString(R.string.voice_call)
+            b.btnSidebarMic.setColorFilter(whiteColor)
+            b.btnSidebarMic.setImageResource(R.drawable.ic_baseline_mic_off_24)
+            val primaryColor = b.root.context.colorFromAttribute(R.attr.colorPrimary)
+            b.playerFloatingMic.backgroundTintList = ColorStateList.valueOf(primaryColor)
+            b.playerFloatingMic.setImageResource(R.drawable.ic_baseline_mic_off_24)
+            b.playerFloatingMicContainer.animate().alpha(0.55f).setDuration(150).start()
+        }
+    }
+
+    private fun setupUnifiedMicButton(micView: View) {
+        micView.setOnClickListener {
+            val act = activity ?: return@setOnClickListener
+            if (!WatchTogetherManager.isInRoom) {
+                showToast(R.string.voice_join_room_first)
+                showWatchTogetherDialog()
+                return@setOnClickListener
+            }
+            val vh = voiceHelper ?: WatchTogetherVoiceHelper(act.applicationContext).also { voiceHelper = it }
+            if (vh.isLiveMicOn) {
+                // Turn Mic OFF (Mute)
+                vh.stopLiveMic()
+                updateMicUI(false)
+                showToast(R.string.mic_turned_off)
+            } else {
+                // Check Permission
+                if (!vh.hasMicPermission()) {
+                    ActivityCompat.requestPermissions(
+                        act,
+                        arrayOf(Manifest.permission.RECORD_AUDIO),
+                        1337
+                    )
+                    showToast(R.string.voice_permission_needed)
+                    return@setOnClickListener
+                }
+                // Turn Mic ON (Live Call)
+                val started = vh.startLiveMic { base64Audio, duration ->
+                    val senderNick = WatchTogetherManager.getSavedNickname(act).ifBlank {
+                        WatchTogetherManager.currentRoom?.members?.find { it.userId == WatchTogetherManager.myUserId }?.name
+                            ?: WatchTogetherManager.pendingHostNickname
+                            ?: "User"
+                    }
+                    WatchTogetherManager.sendVoiceMessage(base64Audio, duration, senderNick)
+                }
+                if (started) {
+                    updateMicUI(true)
+                    showToast(R.string.mic_turned_on)
+                }
+            }
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupDraggableFloatingMic(micContainer: View, micButton: View) {
+        setupUnifiedMicButton(micButton)
+        micContainer.alpha = 0.55f
+
+        var initialX = 0f
+        var initialY = 0f
+        var initialTouchX = 0f
+        var initialTouchY = 0f
+        var isDragging = false
+        var isLongPressed = false
+
+        val longPressHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        val longPressRunnable = Runnable {
+            isLongPressed = true
+            isDragging = true
+            micContainer.animate().scaleX(1.15f).scaleY(1.15f).alpha(1.0f).setDuration(120).start()
+            micButton.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        }
+
+        micButton.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initialX = micContainer.x
+                    initialY = micContainer.y
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    isDragging = false
+                    isLongPressed = false
+                    longPressHandler.postDelayed(longPressRunnable, 250L)
+                    false
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - initialTouchX
+                    val dy = event.rawY - initialTouchY
+                    if (isDragging || (dx * dx + dy * dy > 100)) {
+                        if (!isDragging) {
+                            longPressHandler.removeCallbacks(longPressRunnable)
+                            isDragging = true
+                        }
+                        micContainer.x = initialX + dx
+                        micContainer.y = initialY + dy
+                        true
+                    } else false
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    longPressHandler.removeCallbacks(longPressRunnable)
+                    if (isDragging) {
+                        micContainer.animate().scaleX(1.0f).scaleY(1.0f).alpha(if (voiceHelper?.isLiveMicOn == true) 0.85f else 0.55f).setDuration(120).start()
+                        true
+                    } else {
+                        v.performClick()
+                        true
+                    }
+                }
+                else -> false
+            }
+        }
+    }
+
+
 
     fun checkPendingWatchTogether() {
         val act = activity ?: return
@@ -932,7 +1248,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 binding.tvCurrentRoomCode.text = WatchTogetherManager.currentRoomId ?: ""
 
                 // Members List
-                val members = WatchTogetherManager.currentRoom?.members?.values?.toList() ?: emptyList()
+                val members = WatchTogetherManager.currentRoom?.members ?: emptyList()
                 binding.tvMembersCount.text = "${members.size} online"
                 val membersFormatted = members.joinToString(", ") { m ->
                     if (m.isHost) "👑 ${m.name} (Host)" else m.name
@@ -941,12 +1257,47 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
                 // Host button
                 binding.btnHostStartPlay.isVisible = WatchTogetherManager.isHost
-                binding.layoutDialogVoice.isGone = true
-                playerBinding?.playerChatBtt?.isGone = false
+
+                binding.layoutDialogVoice.isVisible = true
+                setupUnifiedMicButton(binding.btnDialogMic)
+                binding.layoutDialogVoice.setOnClickListener {
+                    binding.btnDialogMic.performClick()
+                }
+
+                val updateDialogVoiceUI: (Boolean) -> Unit = { isMicOn ->
+                    if (isMicOn) {
+                        binding.iconDialogVoiceBadge.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#33FF3344"))
+                        binding.iconDialogVoice.setColorFilter(Color.parseColor("#FF3344"))
+                        binding.iconDialogVoice.setImageResource(R.drawable.ic_baseline_mic_24)
+                        binding.tvDialogVoiceTitle.text = getString(R.string.voice_chat)
+                        binding.tvDialogVoiceSubtitle.text = getString(R.string.voice_status_live)
+                        binding.tvDialogVoiceSubtitle.setTextColor(Color.parseColor("#4CAF50"))
+                        binding.btnDialogMic.text = getString(R.string.mic_on)
+                        binding.btnDialogMic.setIconResource(R.drawable.ic_baseline_mic_24)
+                        binding.btnDialogMic.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FF3344"))
+                        binding.btnDialogMic.setTextColor(Color.WHITE)
+                        binding.btnDialogMic.iconTint = ColorStateList.valueOf(Color.WHITE)
+                    } else {
+                        binding.iconDialogVoiceBadge.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#26FFFFFF"))
+                        binding.iconDialogVoice.setColorFilter(Color.WHITE)
+                        binding.iconDialogVoice.setImageResource(R.drawable.ic_baseline_mic_off_24)
+                        binding.tvDialogVoiceTitle.text = getString(R.string.voice_chat)
+                        binding.tvDialogVoiceSubtitle.text = getString(R.string.voice_hold_to_talk)
+                        val grayColor = act.colorFromAttribute(R.attr.grayTextColor) ?: Color.GRAY
+                        binding.tvDialogVoiceSubtitle.setTextColor(grayColor)
+                        binding.btnDialogMic.text = getString(R.string.voice_turn_on)
+                        binding.btnDialogMic.setIconResource(R.drawable.ic_baseline_mic_off_24)
+                        binding.btnDialogMic.backgroundTintList = ColorStateList.valueOf(Color.WHITE)
+                        val darkColor = Color.parseColor("#1C1C1E")
+                        binding.btnDialogMic.setTextColor(darkColor)
+                        binding.btnDialogMic.iconTint = ColorStateList.valueOf(darkColor)
+                    }
+                }
+                currentDialogVoiceUpdater = updateDialogVoiceUI
+                updateDialogVoiceUI(voiceHelper?.isLiveMicOn == true)
             } else {
                 binding.layoutNotInRoom.isVisible = true
                 binding.layoutInRoom.isVisible = false
-                playerBinding?.playerChatBtt?.isGone = true
             }
             binding.watchTogetherLoading.isVisible = false
             binding.tvWatchTogetherError.isVisible = false
@@ -1115,14 +1466,19 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         }
 
         binding.btnLeaveRoom.setOnClickListener {
+            voiceHelper?.stopLiveMic()
+            updateMicUI(false)
             WatchTogetherManager.leaveRoom()
             showToast(R.string.leave_room)
             updateUI()
+            updatePortraitRoomTabs()
+            playerBinding?.playerFloatingMicContainer?.isGone = true
         }
 
         val dismiss = DialogInterface.OnDismissListener {
             act.hideSystemUI()
             selectWatchTogetherDialog = null
+            updatePortraitRoomTabs()
         }
 
         val builder = AlertDialog.Builder(act, R.style.AlertDialogCustom).setView(binding.root)
@@ -1212,16 +1568,16 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             playerVideoTitleRez.isGone = isGone || playerVideoTitleRez.text.isBlank()
             playerEpisodeFiller.isGone = isGone
             playerCenterMenu.isGone = isGone
-            playerLock.isGone = !isShowing
+            playerLock.isGone = true
             playerGoBackHolder.isGone = isGone
             playerSourcesBtt.isGone = isGone
             playerWatchTogetherBtt.isVisible = !isGone
-            playerMicBtt.isGone = true
-            playerChatBtt.isGone = isGone || !WatchTogetherManager.isInRoom
-            playerFloatingMicContainer.isGone = true
+            playerChatBtt.isVisible = !isGone
             if (isGone && playerChatBarContainer.isVisible) {
                 playerChatBarContainer.isVisible = false
             }
+            playerMicBtt.isVisible = !isGone
+            playerFloatingMicContainer.isVisible = !isGone && WatchTogetherManager.isInRoom
             shadowOverlay.isGone = isGone
             playerSkipEpisode.isClickable = !isGone
         }
@@ -1229,6 +1585,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
     private fun updateLockUI() {
         playerBinding?.apply {
+            playerLock.isGone = true
             playerLock.setIconResource(if (isLocked) R.drawable.video_locked else R.drawable.video_unlocked)
             val color = if (isLocked) context?.colorFromAttribute(R.attr.colorPrimary)
             else Color.WHITE
@@ -1268,6 +1625,9 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
     override fun onTouchDown() {
         if (isShowingEpisodeOverlay) toggleEpisodesOverlay(show = false)
+        if (playerBinding?.playerChatBarContainer?.isVisible == true) {
+            toggleChatBar(forceShow = false)
+        }
     }
 
     @SuppressLint("SetTextI18n")
@@ -1337,6 +1697,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        updatePortraitLayoutMode(newConfig.orientation)
 
         // If we rotate the device we need to recalculate the zoom
         val gh = playerHostView?.gestureHelper ?: return
@@ -1526,14 +1887,12 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 }
             }
 
-            // netflix capture back and hide ~monke
-            // This is removed due to inconsistent behavior on some devices
-            /*KeyEvent.KEYCODE_BACK -> {
-                if (isShowing && isLayout(TV or EMULATOR)) {
-                    onClickChange()
+            KeyEvent.KEYCODE_BACK -> {
+                if (playerBinding?.playerChatBarContainer?.isVisible == true) {
+                    toggleChatBar(forceShow = false)
                     return true
                 }
-            }*/
+            }
         }
 
         return false
@@ -1643,7 +2002,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 playerSpeedBtt.isVisible = playBackSpeedEnabled
                 playerResizeBtt.isVisible = playerResizeEnabled
                 playerRotateBtt.isVisible =
-                    if (isLayout(TV or EMULATOR)) false else playerRotateEnabled
+                    if (isLayout(TV or EMULATOR)) false else true
                 if (hideControlsNames) {
                     hideControlsNames()
                 }
@@ -1748,7 +2107,17 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             }
 
             playerChatBtt.setOnClickListener {
-                toggleChatBar()
+                if (!WatchTogetherManager.isInRoom) {
+                    showWatchTogetherDialog()
+                } else {
+                    toggleChatBar()
+                }
+            }
+
+            fullscreenChatAdapter = PortraitChatAdapter()
+            rvSidebarChatMessages.adapter = fullscreenChatAdapter
+            btnSidebarChatClose.setOnClickListener {
+                toggleChatBar(forceShow = false)
             }
 
             btnPlayerChatSend.setOnClickListener {
@@ -1769,6 +2138,15 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             btnQuickEmojiHeart.setOnClickListener { sendCurrentChatMessage("❤️") }
             btnQuickEmojiShock.setOnClickListener { sendCurrentChatMessage("😱") }
             btnQuickEmojiClap.setOnClickListener { sendCurrentChatMessage("👏") }
+            btnQuickEmojiPopcorn.setOnClickListener { sendCurrentChatMessage("🍿") }
+            btnQuickEmojiThumbsup.setOnClickListener { sendCurrentChatMessage("👍") }
+            btnQuickEmojiParty.setOnClickListener { sendCurrentChatMessage("🎉") }
+
+            setupUnifiedMicButton(playerMicBtt)
+            setupUnifiedMicButton(btnSidebarMic)
+            setupDraggableFloatingMic(playerFloatingMicContainer, playerFloatingMic)
+
+
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 playerControlsScroll.setOnScrollChangeListener { _, _, _, _, _ ->
@@ -1796,13 +2174,165 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             playerEpisodesButton.setOnClickListener {
                 toggleEpisodesOverlay(show = true)
             }
+            btnHorizontalEpisodesClose.setOnClickListener {
+                toggleEpisodesOverlay(show = false)
+            }
         }
         // init UI
         try {
             uiReset()
+            setupPortraitBottomSection()
+            updatePortraitLayoutMode()
             setupWatchTogetherSync()
         } catch (e: Exception) {
             logError(e)
+        }
+    }
+
+    protected var portraitChatAdapter: PortraitChatAdapter? = null
+    protected var fullscreenChatAdapter: PortraitChatAdapter? = null
+
+    fun updatePortraitLayoutMode(newOrientation: Int? = null) {
+        val b = binding ?: return
+        val ctx = context ?: return
+        if (isLayout(TV or EMULATOR)) {
+            b.portraitBottomContainer.isGone = true
+            return
+        }
+
+        val currentOrientation = newOrientation ?: ctx.resources.configuration.orientation
+        val isPortrait = currentOrientation == Configuration.ORIENTATION_PORTRAIT
+
+        val constraintSet = ConstraintSet()
+        constraintSet.clone(b.playerBackground)
+
+        if (isPortrait) {
+            // Video player at top (16:9 ratio, YouTube style)
+            constraintSet.clear(R.id.player_view, ConstraintSet.BOTTOM)
+            constraintSet.connect(R.id.player_view, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
+            constraintSet.connect(R.id.player_view, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+            constraintSet.connect(R.id.player_view, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+            constraintSet.setDimensionRatio(R.id.player_view, "16:9")
+            constraintSet.constrainHeight(R.id.player_view, 0)
+            constraintSet.constrainWidth(R.id.player_view, ConstraintSet.MATCH_CONSTRAINT)
+
+            // Bottom container takes remaining screen space
+            constraintSet.clear(R.id.portrait_bottom_container)
+            constraintSet.connect(R.id.portrait_bottom_container, ConstraintSet.TOP, R.id.player_view, ConstraintSet.BOTTOM)
+            constraintSet.connect(R.id.portrait_bottom_container, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+            constraintSet.connect(R.id.portrait_bottom_container, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+            constraintSet.connect(R.id.portrait_bottom_container, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+            constraintSet.constrainHeight(R.id.portrait_bottom_container, 0)
+            constraintSet.constrainWidth(R.id.portrait_bottom_container, ConstraintSet.MATCH_CONSTRAINT)
+            constraintSet.setVisibility(R.id.portrait_bottom_container, View.VISIBLE)
+
+            playerBinding?.playerHorizontalEpisodesContainer?.isGone = true
+            populatePortraitEpisodes()
+        } else {
+            // Fullscreen landscape
+            constraintSet.clear(R.id.player_view)
+            constraintSet.connect(R.id.player_view, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
+            constraintSet.connect(R.id.player_view, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+            constraintSet.connect(R.id.player_view, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+            constraintSet.connect(R.id.player_view, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+            constraintSet.setDimensionRatio(R.id.player_view, null)
+            constraintSet.constrainHeight(R.id.player_view, 0)
+            constraintSet.constrainWidth(R.id.player_view, ConstraintSet.MATCH_CONSTRAINT)
+
+            constraintSet.setVisibility(R.id.portrait_bottom_container, View.GONE)
+        }
+
+        constraintSet.applyTo(b.playerBackground)
+    }
+
+    open fun populatePortraitEpisodes() {}
+
+    fun updatePortraitRoomTabs() {
+        val b = binding ?: return
+        if (isLayout(TV or EMULATOR)) return
+
+        val inRoom = WatchTogetherManager.isInRoom
+        b.tabPortraitChat.isVisible = inRoom
+        b.tvPortraitRoomBadge.isVisible = inRoom
+        if (inRoom) {
+            b.tvPortraitRoomBadge.text = if (WatchTogetherManager.isHost) "HOST" else "GUEST"
+            portraitChatAdapter?.submitList(WatchTogetherManager.chatHistory.toList())
+        } else {
+            b.rvPortraitEpisodes.isVisible = true
+            b.layoutPortraitChat.isGone = true
+            val primaryColor = context?.let { ctx -> ctx.colorFromAttribute(R.attr.colorPrimary) } ?: 0xFF3B82F6.toInt()
+            b.tabPortraitEpisodes.setTextColor(primaryColor)
+            b.tabPortraitChat.setTextColor(0x80FFFFFF.toInt())
+        }
+    }
+
+    private fun setupPortraitBottomSection() {
+        val b = binding ?: return
+        if (isLayout(TV or EMULATOR)) return
+
+        portraitChatAdapter = PortraitChatAdapter()
+        b.rvPortraitChatMessages.adapter = portraitChatAdapter
+
+        fun selectTab(isEpisodes: Boolean) {
+            val primaryColor = context?.let { ctx -> ctx.colorFromAttribute(R.attr.colorPrimary) } ?: 0xFF3B82F6.toInt()
+            val dimColor = 0x80FFFFFF.toInt()
+
+            b.rvPortraitEpisodes.isVisible = isEpisodes
+            b.layoutPortraitChat.isVisible = !isEpisodes
+
+            b.tabPortraitEpisodes.setTextColor(if (isEpisodes) primaryColor else dimColor)
+            b.tabPortraitChat.setTextColor(if (!isEpisodes) primaryColor else dimColor)
+
+            if (!isEpisodes && (portraitChatAdapter?.itemCount ?: 0) > 0) {
+                b.rvPortraitChatMessages.scrollToPosition(portraitChatAdapter!!.itemCount - 1)
+            }
+        }
+
+        b.tabPortraitEpisodes.setOnClickListener {
+            selectTab(true)
+            populatePortraitEpisodes()
+        }
+
+        b.tabPortraitChat.setOnClickListener {
+            selectTab(false)
+        }
+
+        fun sendMsg() {
+            val text = b.etPortraitChatInput.text?.toString()?.trim() ?: ""
+            if (text.isNotEmpty()) {
+                val nick = context?.let { ctx -> WatchTogetherManager.getSavedNickname(ctx) }?.ifBlank { "User" } ?: "User"
+                WatchTogetherManager.sendMessage(text, nick)
+                b.etPortraitChatInput.setText("")
+            }
+        }
+
+        b.btnPortraitChatSend.setOnClickListener {
+            sendMsg()
+        }
+
+        b.etPortraitChatInput.setOnEditorActionListener { _, actionId, event ->
+            if (actionId == EditorInfo.IME_ACTION_SEND || (event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)) {
+                sendMsg()
+                true
+            } else false
+        }
+
+        updatePortraitRoomTabs()
+
+        WatchTogetherManager.setOnChatHistoryUpdatedListener { history ->
+            activity?.runOnUiThread {
+                portraitChatAdapter?.submitList(history)
+                if (history.isNotEmpty()) {
+                    binding?.rvPortraitChatMessages?.scrollToPosition(history.size - 1)
+                }
+
+                // Also update Fullscreen Sidebar Chat live!
+                fullscreenChatAdapter?.submitList(history)
+                playerBinding?.tvSidebarChatEmpty?.isVisible = history.isEmpty()
+                if (history.isNotEmpty()) {
+                    playerBinding?.rvSidebarChatMessages?.scrollToPosition(history.size - 1)
+                }
+            }
         }
     }
 
@@ -1854,25 +2384,62 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
     }
 
     private fun animateEpisodesOverlay(show: Boolean) {
-        playerBinding?.playerEpisodeOverlay?.let { overlay ->
-            overlay.animate().cancel()
-            (overlay.parent as? ViewGroup)?.layoutTransition = null // Disable layout transitions
+        if (isLayout(TV or EMULATOR)) {
+            // TV: ONLY right vertical drawer
+            playerBinding?.playerHorizontalEpisodesContainer?.isGone = true
 
-            val offset = 50 * overlay.resources.displayMetrics.density
+            playerBinding?.playerEpisodeOverlay?.let { overlay ->
+                overlay.animate().cancel()
+                (overlay.parent as? ViewGroup)?.layoutTransition = null // Disable layout transitions
 
-            overlay.translationX = if (show) offset else 0f
-            playerBinding?.playerEpisodeOverlay?.isVisible = true
+                val offset = 50 * overlay.resources.displayMetrics.density
 
-            overlay.animate()
-                .translationX(if (show) 0f else offset)
-                .alpha(if (show) 1f else 0f)
-                .setDuration(300)
-                .setInterpolator(AccelerateDecelerateInterpolator()).withEndAction {
-                    if (!show) {
-                        playerBinding?.playerEpisodeOverlay?.isGone = true
+                overlay.translationX = if (show) offset else 0f
+                playerBinding?.playerEpisodeOverlay?.isVisible = true
+
+                overlay.animate()
+                    .translationX(if (show) 0f else offset)
+                    .alpha(if (show) 1f else 0f)
+                    .setDuration(300)
+                    .setInterpolator(AccelerateDecelerateInterpolator()).withEndAction {
+                        if (!show) {
+                            playerBinding?.playerEpisodeOverlay?.isGone = true
+                        }
                     }
+                    .start()
+            }
+        } else {
+            // Mobile: ONLY bottom horizontal episode bar
+            playerBinding?.playerEpisodeOverlay?.isGone = true
+
+            playerBinding?.playerHorizontalEpisodesContainer?.let { container ->
+                container.animate().cancel()
+                (container.parent as? ViewGroup)?.layoutTransition = null
+
+                val offset = 60 * container.resources.displayMetrics.density
+
+                if (show) {
+                    container.translationY = offset
+                    container.alpha = 0f
+                    container.isVisible = true
+                    container.animate()
+                        .translationY(0f)
+                        .alpha(1f)
+                        .setDuration(280)
+                        .setInterpolator(DecelerateInterpolator())
+                        .start()
+                } else {
+                    container.animate()
+                        .translationY(offset)
+                        .alpha(0f)
+                        .setDuration(220)
+                        .setInterpolator(AccelerateDecelerateInterpolator())
+                        .withEndAction {
+                            container.isGone = true
+                        }
+                        .start()
                 }
-                .start()
+            }
         }
     }
 }
