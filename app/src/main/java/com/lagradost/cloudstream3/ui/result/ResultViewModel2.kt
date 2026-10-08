@@ -1563,7 +1563,8 @@ class ResultViewModel2 : ViewModel() {
                 val generator = generator ?: return
 
                 // I know kinda shit to iterate all, but it is 100% sure to work
-                val index = generator.videos.indexOfFirst { value -> value.id == click.data.id }
+                val rawIndex = generator.videos.indexOfFirst { value -> value.id == click.data.id }
+                val index = if (rawIndex < 0) 0 else rawIndex
 
                 if (currentResponse?.type == TvType.CustomMedia) {
                     generator.generateLinks(
@@ -2545,16 +2546,21 @@ class ResultViewModel2 : ViewModel() {
                 START_ACTION_LOAD_EP -> {
                     val all = currentEpisodes.values.flatten()
                     val episode =
-                        autostart.id?.let { id -> all.firstOrNull { it.id == id } }
-                            ?: autostart.episode?.let { ep ->
-                                currentEpisodes[currentIndex]?.firstOrNull { it.episode == ep && it.season == autostart.episode }
-                                    ?: all.firstOrNull { it.episode == ep && it.season == autostart.episode }
+                        autostart.id?.takeIf { it > 0 }?.let { id -> all.firstOrNull { it.id == id } }
+                            ?: autostart.episode?.takeIf { it > 0 }?.let { ep ->
+                                val targetSeason = autostart.season?.takeIf { it > 0 }
+                                if (targetSeason != null) {
+                                    currentEpisodes.entries.firstOrNull { it.key.season == targetSeason }?.value?.firstOrNull { it.episode == ep }
+                                        ?: all.firstOrNull { it.episode == ep && it.season == targetSeason }
+                                } else {
+                                    all.firstOrNull { it.episode == ep }
+                                }
                             }
                             ?: all.firstOrNull()
                             ?: return@launchSafe
                     handleAction(
                         EpisodeClickEvent(
-                            getPlayerAction(activity),
+                            ACTION_PLAY_EPISODE_IN_PLAYER,
                             episode
                         )
                     )

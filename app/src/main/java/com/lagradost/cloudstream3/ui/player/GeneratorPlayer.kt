@@ -1685,6 +1685,7 @@ class GeneratorPlayer : FullScreenPlayer() {
         } else {
             descView.isVisible = false
         }
+        updatePortraitLayoutMode()
 
         // Asynchronously fetch high quality clean Title Logo & extra info from TMDB
         ioSafe {
@@ -1750,6 +1751,7 @@ class GeneratorPlayer : FullScreenPlayer() {
     override fun getCurrentMediaUrl(): String? {
         return (viewModel.generator as? RepoLinkGenerator)?.page?.url
             ?: viewModel.state.generatorState?.response?.url
+            ?: (currentMeta as? ResultEpisode)?.data
     }
 
     override fun getCurrentApiName(): String? {

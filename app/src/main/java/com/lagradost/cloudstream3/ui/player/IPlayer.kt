@@ -215,6 +215,7 @@ interface IPlayer {
     fun getDuration(): Long?
     /** Current player position in milliseconds */
     fun getPosition(): Long?
+    fun getCurrentStreamUrl(): String? = null
 
     fun seekTime(time: Long, source: PlayerEventSource = PlayerEventSource.UI)
     fun seekTo(time: Long, source: PlayerEventSource = PlayerEventSource.UI)

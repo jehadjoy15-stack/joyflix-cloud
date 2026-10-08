@@ -171,7 +171,9 @@ object ResultFragment {
         apiName: String,
         name: String,
         startAction: Int = 0,
-        startValue: Int = 0
+        startValue: Int = 0,
+        episode: Int? = null,
+        season: Int? = null
     ): Bundle {
         return Bundle().apply {
             putString(URL_BUNDLE, url)
@@ -179,6 +181,10 @@ object ResultFragment {
             putString(NAME_BUNDLE, name)
             putInt(START_ACTION_BUNDLE, startAction)
             putInt(START_VALUE_BUNDLE, startValue)
+            if (episode != null)
+                putInt(EPISODE_BUNDLE, episode)
+            if (season != null)
+                putInt(SEASON_BUNDLE, season)
             putBoolean(RESTART_BUNDLE, true)
         }
     }
@@ -298,13 +304,15 @@ object ResultFragment {
             arguments?.putBoolean(RESTART_BUNDLE, false)
         }
 
-        val start = startAction?.let { action ->
-            val startValue = arguments?.getInt(START_VALUE_BUNDLE)
-            val resumeEpisode = arguments?.getInt(EPISODE_BUNDLE)
-            val resumeSeason = arguments?.getInt(SEASON_BUNDLE)
+        val start = startAction?.takeIf { it != 0 }?.let { action ->
+            val startValue = arguments?.getInt(START_VALUE_BUNDLE)?.takeIf { arguments?.containsKey(START_VALUE_BUNDLE) == true && it > 0 }
+            val resumeEpisode = arguments?.getInt(EPISODE_BUNDLE)?.takeIf { arguments?.containsKey(EPISODE_BUNDLE) == true && it > 0 }
+            val resumeSeason = arguments?.getInt(SEASON_BUNDLE)?.takeIf { arguments?.containsKey(SEASON_BUNDLE) == true && it > 0 }
 
             arguments?.remove(START_VALUE_BUNDLE)
             arguments?.remove(START_ACTION_BUNDLE)
+            arguments?.remove(EPISODE_BUNDLE)
+            arguments?.remove(SEASON_BUNDLE)
             AutoResume(
                 startAction = action,
                 id = startValue,

@@ -202,6 +202,7 @@ class CS3IPlayer : IPlayer {
     override fun getPosition(): Long? = exoPlayer?.currentPosition
     override fun getIsPlaying(): Boolean = isPlaying
     override fun getPlaybackSpeed(): Float = playBackSpeed
+    override fun getCurrentStreamUrl(): String? = currentLink?.url ?: currentDownloadedFile?.uri?.toString()
 
     /**
      * Tracks reported to be used by exoplayer, since sometimes it has a mind of it's own when selecting subs.

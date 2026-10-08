@@ -28,7 +28,10 @@ import android.view.inputmethod.EditorInfo
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.AlphaAnimation
 import android.view.animation.DecelerateInterpolator
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AlertDialog
 import androidx.core.graphics.blue
@@ -69,6 +72,8 @@ import com.lagradost.cloudstream3.ui.settings.Globals.EMULATOR
 import com.lagradost.cloudstream3.ui.settings.Globals.PHONE
 import com.lagradost.cloudstream3.ui.settings.Globals.TV
 import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
+import com.lagradost.cloudstream3.ui.result.START_ACTION_LOAD_EP
+import com.lagradost.cloudstream3.utils.AppContextUtils.loadResult
 import com.lagradost.cloudstream3.utils.AppContextUtils.isUsingMobileData
 import com.lagradost.cloudstream3.utils.AppContextUtils.shouldShowPlayerMetadata
 import com.lagradost.cloudstream3.utils.BackPressedCallbackHelper.attachBackPressedCallback
@@ -1084,6 +1089,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 // Turn Mic OFF (Mute)
                 vh.stopLiveMic()
                 updateMicUI(false)
+                WatchTogetherManager.setVoiceStatus(false)
                 showToast(R.string.mic_turned_off)
             } else {
                 // Check Permission
@@ -1107,6 +1113,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 }
                 if (started) {
                     updateMicUI(true)
+                    WatchTogetherManager.setVoiceStatus(true)
                     showToast(R.string.mic_turned_on)
                 }
             }
@@ -1195,7 +1202,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                 val res = WatchTogetherManager.createRoom(
                     nickname = nick,
                     title = title,
-                    streamUrl = null,
+                    streamUrl = player.getCurrentStreamUrl(),
                     mediaUrl = mediaUrl,
                     apiName = apiName,
                     episodeId = epId,
@@ -1214,7 +1221,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                     }
                 }
             }
-        } else if (WatchTogetherManager.pendingJoinRoomId != null) {
+        } else if (WatchTogetherManager.isInRoom && !WatchTogetherManager.isHost) {
             WatchTogetherManager.pendingJoinRoomId = null
             WatchTogetherManager.currentRoom?.playback?.let { state ->
                 val elapsed = if (state.updatedAt > 0) (System.currentTimeMillis() - state.updatedAt).coerceAtLeast(0L) else 0L
@@ -1352,7 +1359,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                     val result = WatchTogetherManager.createRoom(
                         nickname = nick,
                         title = title,
-                        streamUrl = null,
+                        streamUrl = player.getCurrentStreamUrl(),
                         mediaUrl = mediaUrl,
                         apiName = apiName,
                         episodeId = epId,
@@ -1408,6 +1415,24 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
                         onRoomLoaded = { room ->
                             act.runOnUiThread {
                                 showToast(R.string.room_joined_success)
+                                selectWatchTogetherDialog?.dismissSafe(act)
+                                val roomMedia = room.mediaUrl
+                                val roomApi = room.apiName
+                                val currentMedia = getCurrentMediaUrl()
+                                if (!roomMedia.isNullOrBlank() && !roomApi.isNullOrBlank() && roomMedia != currentMedia) {
+                                    WatchTogetherManager.pendingJoinRoomId = room.roomId
+                                    act.loadResult(
+                                        url = roomMedia,
+                                        apiName = roomApi,
+                                        name = room.title ?: "Watch Party",
+                                        startAction = START_ACTION_LOAD_EP,
+                                        startValue = room.episodeId ?: (room.episode ?: 0),
+                                        episode = room.episode,
+                                        season = room.season
+                                    )
+                                    return@runOnUiThread
+                                }
+
                                 updateUI()
                                 val state = room.playback
                                 val targetEpisode = state.episodeIndex ?: room.episodeIndex
@@ -1659,6 +1684,7 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         super.playerEvent(event)
         if (event.source == PlayerEventSource.Sync) return
         if (!WatchTogetherManager.isInRoom) return
+        if (!WatchTogetherManager.isHost) return
 
         val epIndex = getCurrentEpisodeIndex()
         when (event) {
@@ -2206,6 +2232,14 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
         val constraintSet = ConstraintSet()
         constraintSet.clone(b.playerBackground)
 
+        val scrim = playerBinding?.root?.findViewById<View>(R.id.player_metadata_scrim)
+        val overlayLayout = playerBinding?.root?.findViewById<LinearLayout>(R.id.player_metadata_overlay)
+        val logoView = playerBinding?.root?.findViewById<ImageView>(R.id.player_movie_logo)
+        val logoHolder = logoView?.parent as? FrameLayout
+        val titleView = playerBinding?.root?.findViewById<TextView>(R.id.player_movie_title)
+        val metaView = playerBinding?.root?.findViewById<TextView>(R.id.player_movie_meta)
+        val overviewView = playerBinding?.root?.findViewById<TextView>(R.id.player_movie_overview)
+
         if (isPortrait) {
             // Video player at top (16:9 ratio, YouTube style)
             constraintSet.clear(R.id.player_view, ConstraintSet.BOTTOM)
@@ -2228,6 +2262,19 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
             playerBinding?.playerHorizontalEpisodesContainer?.isGone = true
             populatePortraitEpisodes()
+
+            // Scale down pause overlay metadata for compact 16:9 portrait player
+            scrim?.layoutParams?.width = ViewGroup.LayoutParams.MATCH_PARENT
+            overlayLayout?.setPaddingRelative(16.toPx, overlayLayout.paddingTop, 16.toPx, 8.toPx)
+            logoHolder?.layoutParams?.height = 48.toPx
+            logoHolder?.requestLayout()
+            logoView?.maxWidth = 180.toPx
+            titleView?.textSize = 18f
+            metaView?.textSize = 11f
+            (metaView?.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = 4.toPx
+            overviewView?.textSize = 11f
+            overviewView?.maxLines = 2
+            (overviewView?.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = 4.toPx
         } else {
             // Fullscreen landscape
             constraintSet.clear(R.id.player_view)
@@ -2240,6 +2287,19 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
             constraintSet.constrainWidth(R.id.player_view, ConstraintSet.MATCH_CONSTRAINT)
 
             constraintSet.setVisibility(R.id.portrait_bottom_container, View.GONE)
+
+            // Restore cinematic size in landscape
+            scrim?.layoutParams?.width = 640.toPx
+            overlayLayout?.setPaddingRelative(56.toPx, overlayLayout.paddingTop, 32.toPx, 24.toPx)
+            logoHolder?.layoutParams?.height = 140.toPx
+            logoHolder?.requestLayout()
+            logoView?.maxWidth = 480.toPx
+            titleView?.textSize = 36f
+            metaView?.textSize = 14f
+            (metaView?.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = 12.toPx
+            overviewView?.textSize = 14f
+            overviewView?.maxLines = 3
+            (overviewView?.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = 12.toPx
         }
 
         constraintSet.applyTo(b.playerBackground)
@@ -2361,6 +2421,14 @@ open class FullScreenPlayer : AbstractPlayerFragment<FragmentPlayerBinding>(
 
     override fun playerDimensionsLoaded(width: Int, height: Int) {
         checkPendingWatchTogether()
+        if (WatchTogetherManager.isInRoom && WatchTogetherManager.isHost) {
+            WatchTogetherManager.broadcastSource(
+                streamUrl = player.getCurrentStreamUrl(),
+                mediaUrl = getCurrentMediaUrl(),
+                apiName = getCurrentApiName(),
+                episodeId = getCurrentEpisodeId()
+            )
+        }
         // PlayerView already set isVerticalOrientation; skip rotation on TV (pillarbox instead).
         if (isLayout(TV or EMULATOR)) return
         // Skip zero-size events emitted when the player transitions to STATE_IDLE,

@@ -250,6 +250,42 @@ object WatchTogetherManager {
         }
     }
 
+    fun setVoiceStatus(isActive: Boolean) {
+        val roomId = currentRoomId ?: return
+        ioSafe {
+            try {
+                val url = "${getBaseUrl()}/api/rooms/$roomId/voice-status"
+                val body = mapOf(
+                    "userId" to myUserId,
+                    "voiceActive" to isActive
+                ).toJson().toRequestBody(JSON_MEDIA_TYPE)
+                app.post(url, requestBody = body)
+            } catch (e: Throwable) {
+                logError(e)
+            }
+        }
+    }
+
+    fun broadcastSource(streamUrl: String?, mediaUrl: String?, apiName: String?, episodeId: Int? = null) {
+        val roomId = currentRoomId ?: return
+        if (!isHost) return
+
+        ioSafe {
+            try {
+                val url = "${getBaseUrl()}/api/rooms/$roomId/source"
+                val body = mapOf(
+                    "streamUrl" to (streamUrl ?: ""),
+                    "mediaUrl" to (mediaUrl ?: ""),
+                    "apiName" to (apiName ?: ""),
+                    "episodeId" to episodeId
+                ).toJson().toRequestBody(JSON_MEDIA_TYPE)
+                app.post(url, requestBody = body)
+            } catch (e: Throwable) {
+                logError(e)
+            }
+        }
+    }
+
     fun getSavedNickname(context: Context?): String {
         return try {
             val prefs = context?.let { PreferenceManager.getDefaultSharedPreferences(it) }
@@ -404,6 +440,7 @@ object WatchTogetherManager {
     }
 
     fun leaveRoom() {
+        setVoiceStatus(false)
         currentRoomId = null
         currentRoom = null
         currentEpisodeIndex = null
@@ -479,7 +516,7 @@ object WatchTogetherManager {
 
                             // 1. Check remote playback sync & episode change
                             val state = room.playback
-                            if (!isHost && state.updatedBy != myUserId) {
+                            if (!isHost) {
                                 val targetEp = state.episodeIndex ?: room.episodeIndex
                                 if (targetEp != null && targetEp != currentEpisodeIndex) {
                                     currentEpisodeIndex = targetEp
@@ -651,7 +688,9 @@ object WatchTogetherManager {
                                         apiName = api,
                                         name = room.title ?: "Watch Party",
                                         startAction = START_ACTION_LOAD_EP,
-                                        startValue = room.episodeId ?: 0
+                                        startValue = room.episodeId ?: (room.episode ?: 0),
+                                        episode = room.episode,
+                                        season = room.season
                                     )
                                 } else {
                                     showToast("Connected to room! Loading stream...")
